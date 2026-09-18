@@ -36,13 +36,18 @@ function modelFeatures(p:any,currentGw=1){
   const xg90=rate(p.expected_goals,mins,rate(p.goals_scored,mins));
   const xa90=rate(p.expected_assists,mins,rate(p.assists,mins));
   const dc90=rate(p.defensive_contribution,mins);
+  const gamesPlayed=Math.max(1,Number(p.appearances||p.minutes?1:0));
   return {
     form3:Number(p.form||0),form5:Number(p.form||0),p90,xgi90,xg90,xa90,dc90,
-    startRate:Number(p.starts||0)/gws,minutesRate:mins/(90*gws)
+    bonus90:rate(p.bonus,mins),bps90:rate(p.bps,mins),ict90:rate(p.ict_index,mins),
+    threat90:rate(p.threat,mins),creativity90:rate(p.creativity,mins),influence90:rate(p.influence,mins),
+    goals90:rate(p.goals_scored,mins),assists90:rate(p.assists,mins),saves90:rate(p.saves,mins),
+    cleanSheetRate:Number(p.clean_sheets||0)/Math.max(1,gws),startRate:Number(p.starts||0)/gws,
+    minutesRate:mins/(90*gws),recentMinutesRate:Number(p.minutes||0)/(90*Math.max(1,gws))
   };
 }
 function normaliseModelPool(rows:any[]){
-  const keys=["form3","form5","p90","xgi90","xg90","xa90","dc90","startRate","minutesRate"];
+  const keys=["form3","form5","p90","xgi90","xg90","xa90","dc90","bonus90","bps90","ict90","threat90","creativity90","influence90","goals90","assists90","saves90","cleanSheetRate","startRate","minutesRate","recentMinutesRate"];
   const stats:any={};
   for(const k of keys){
     const vals=rows.map(x=>Number(x[k]||0)),mean=vals.reduce((a,b)=>a+b,0)/Math.max(1,vals.length);
@@ -117,11 +122,17 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
   const games=fixtures.filter(f=>f.event&&Number(f.event)>=currentGw&&Number(f.event)<=horizon&&(f.team_h===p.team||f.team_a===p.team));
   const availability=availabilityProb(p),start=startProbability(p),mins=expectedMinutes(p),ppg=Number(p.points_per_game||0),form=Number(p.form||0),totalMinutes=Number(p.minutes||0);
   const xgi90=rate(p.expected_goal_involvements,totalMinutes,rate(Number(p.goals_scored||0)+Number(p.assists||0),totalMinutes));
-  const per90=Math.max(0.05,(ppg/Math.max(.35,mins/90))*.55+xgi90*.7+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.25);
+  const ict90=rate(p.ict_index,totalMinutes),threat90=rate(p.threat,totalMinutes),creativity90=rate(p.creativity,totalMinutes);
+  const bonus90=rate(p.bonus,totalMinutes),bps90=rate(p.bps,totalMinutes);
+  const attackingSignal=xgi90*.48+rate(p.goals_scored,totalMinutes)*.16+rate(p.assists,totalMinutes)*.12+threat90*.015+creativity90*.008;
+  const allRoundSignal=ict90*.012+bonus90*.08+bps90*.004+rate(p.defensive_contribution,totalMinutes)*.10;
+  const per90=Math.max(0.05,(ppg/Math.max(.35,mins/90))*.38+attackingSignal*.42+allRoundSignal*.20);
   const historicalSignal=clamp(Number(p.historicalScore||0)*.55,-2,2);
   const recent=Math.max(0,form)*.18+Math.max(0,ppg)*.32+per90*.35+historicalSignal*.12;
   const fixtureAvg=games.length?games.reduce((s,f)=>s+fixtureScore(f,p.team),0)/games.length:1;
   const next=games.length?games[0]:null;
+  // Upcoming fixtures are explicitly part of the transfer decision: every
+  // fixture from the current GW through the 7-GW horizon is projected.
   const nextPts=next?Math.max(0,expectedFixturePoints(p,next,mins)):0;
   const expected=games.reduce((s,f)=>{
     const fs=eventFixtures(p.team,fixtures,Number(f.event));
@@ -146,7 +157,8 @@ const posName=(p:number)=>({1:"Goalkeeper",2:"Defender",3:"Midfielder",4:"Forwar
 function weekScore(p:any,fixtures:any[],gw:number){
   const fs=eventFixtures(p.team,fixtures,gw);if(!fs.length)return 0;
   const raw=p.raw||p;
-  const scores=fs.map(f=>expectedFixturePoints(raw,f,expectedMinutes(raw)));
+  const minutes=Number(p.expectedMinutes||expectedMinutes(p));
+  const scores=fs.map(f=>expectedFixturePoints({...raw,...p},f,minutes));
   const sum=scores.reduce((a,b)=>a+b,0);
   const hs=Number(p.historicalScore||0);
   const modelBase=clamp(2+hs*.55,0,10);
