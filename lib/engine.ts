@@ -130,23 +130,20 @@ function multiWeekDelta(out:any,inP:any,fixtures:any[],startGw:number,horizon=3)
   let d=0;for(let g=startGw+1;g<=startGw+horizon;g++)d+=weekScore(inP,fixtures,g)-weekScore(out.player,fixtures,g);
   return d;
 }
-function makeCandidates(squad:any[],pool:any[],bank:number,startGw:number,horizon=3){
+function makeCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=3){
   const out:any[]=[];
   for(const o of squad)for(const p of pool){
     if(squad.some(x=>x.player.id===p.id)||p.position!==o.player.position)continue;
     const sell=sellPrice(o),cost=Number((p.price-sell).toFixed(1));
     if(cost>bank+.001)continue;
     if(clubCount(squad,p.team)>=3&&p.team!==o.player.team)continue;
-    const next=weekScore(p,[],startGw+1);
-    const delta=multiWeekDelta(o,p,fixturesSafe, startGw,horizon);
+    const delta=multiWeekDelta(o,p,fixtures, startGw,horizon);
     out.push({out:o,in:p,cost,delta:Number(delta.toFixed(2)),next});
   }
   return out.sort((a,b)=>b.delta-a.delta);
 }
-let fixturesSafe:any[]=[];
 function candidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=3){
-  fixturesSafe=fixtures;
-  return makeCandidates(squad,pool,bank,startGw,horizon);
+  return makeCandidates(squad,pool,bank,fixtures,startGw,horizon);
 }
 function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number){
   return candidates(squad,pool,bank,fixtures,gw,3).filter(x=>x.delta>0.35).slice(0,8).map(x=>({
