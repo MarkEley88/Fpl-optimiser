@@ -101,10 +101,10 @@ function weekScore(p:any,fixtures:any[],gw:number){
   return Number(Math.max(0,sum).toFixed(2));
 }
 function selectionScore(p:any,fixtures:any[],gw:number){
-  const projected=Number(p.projected||0);
   const current=weekScore(p,fixtures,gw);
   const start=Number(p.startProbability||0)/100;
-  return projected*1000 + start + current*.001;
+  const horizon=Number(p.projected||0);
+  return current*1000 + start*10 + horizon*.01;
 }
 function buildXI(squad:any[],fixtures:any[],gw:number){
   const groups:any={1:[],2:[],3:[],4:[]};squad.forEach(x=>groups[x.player.position]?.push(x));
@@ -181,10 +181,11 @@ function substitutionPlan(squad:any[],fixtures:any[],gw:number){
     const counts=[1,2,3,4].map(pos=>trial.filter((x:any)=>Number(x.player.position)===pos).length);
     const legal=counts[0]===1&&counts[1]>=3&&counts[1]<=5&&counts[2]>=2&&counts[2]<=5&&counts[3]>=1&&counts[3]<=3;
     if(!legal)continue;
-    const before=Number(st.player.projected||0),after=Number(b.player.projected||0);
+    const before=weekScore(st.player,fixtures,gw);
+    const after=weekScore(b.player,fixtures,gw);
     const gain=after-before;
     if(gain<=.15)continue;
-    rows.push({bench:b.player.name,starter:st.player.name,benchProjected:b.player.projected,starterProjected:st.player.projected,benchStart:b.player.startProbability,starterStart:st.player.startProbability,gain:Number(gain.toFixed(2)),formation:"1-"+counts[1]+"-"+counts[2]+"-"+counts[3],reason:"Legal change from your actual current XI; the replacement has a higher projected score and the resulting formation remains valid."});
+    rows.push({bench:b.player.name,starter:st.player.name,benchProjected:Number(after.toFixed(2)),starterProjected:Number(before.toFixed(2)),benchStart:b.player.startProbability,starterStart:st.player.startProbability,gain:Number(gain.toFixed(2)),formation:"1-"+counts[1]+"-"+counts[2]+"-"+counts[3],reason:"Legal change from your actual current XI; the replacement has a higher projected score and the resulting formation remains valid."});
   }
   return rows.sort((a,b)=>b.gain-a.gain).slice(0,5);
 }
