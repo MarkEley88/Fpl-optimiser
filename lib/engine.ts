@@ -398,7 +398,7 @@ function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:n
   const cost=squad.reduce((s,x)=>s+x.player.price,0);
   return{squad,bank:Number((budget-cost).toFixed(1))};
 }
-function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:number,bank:number,history:any){
+function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:number,bank:number,history:any,live:any=null){
   let states:any[]=[{squad:initial,bank,ft:getFT(history,startGw,live),total:0,steps:[],usedChips:[] as string[]}];
   // Start with the current gameweek so the displayed FT balance is the
   // balance the manager actually has now. A free transfer is earned only
@@ -504,6 +504,6 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
     model:{name:"FPL Decision Engine v1.0",method:"broader FPL statistical model + live per-fixture projections + 6-GW transfer timing search + chip opportunity-cost layer",horizon:6,transferHitPoints:4,principles:["Optimise cumulative future gameweek points, not just the next GW","Evaluate every candidate's upcoming fixture run and transfer timing","Compare transfer cost, free-transfer state and future points together","Avoid hits unless the projected future gain exceeds the 4-point cost","Preserve information value and avoid reactive price chasing","Captain the highest expected-value option; use ceiling only as a tie-break","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
     chips:{remaining,suggestions:chips,used:usedChips},
     projectedGameweek:{points:Number(scoreState(current,fixtures,gw,null).points.toFixed(2)),captain:captainPlan(xi,fixtures,gw).captain,vice:captainPlan(xi,fixtures,gw).vice,formation:built.formation},
-    decisionPlan:buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history)
+    decisionPlan:buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,picks.entry_history)
   };
 }
