@@ -8,9 +8,16 @@ const CHIP_NAMES=["wildcard","freehit","bboost","3xc"];
 
 function fixtureScore(f:any,teamId:number){
   if(!f)return .5;
-  const home=f.team_h===teamId,diff=Number(home?f.team_h_difficulty:f.team_a_difficulty)||3;
+  const home=f.team_h===teamId;
+  const diff=Number(home?f.team_h_difficulty:f.team_a_difficulty)||3;
+  const opponent=Number(home?f.team_a:f.team_h);
   const venue=home?1.05:.95;
-  return clamp((1-(diff-3)*.18)*venue,.55,1.45);
+  // FPL difficulty is the primary signal; opponent rank strengthens it where available.
+  // Lower rank number = stronger opponent, so strong opposition reduces the score.
+  const rankMap=(globalThis as any).__fplTeamRanks||{};
+  const rank=Number(rankMap[opponent]||0);
+  const rankFactor=rank?clamp(1-(10-rank)*.012,.88,1.12):1;
+  return clamp((1-(diff-3)*.18)*venue*rankFactor,.45,1.5);
 }
 function eventFixtures(team:number,fixtures:any[],gw:number){return fixtures.filter(f=>Number(f.event)===gw&&(f.team_h===team||f.team_a===team))}
 function minutesProb(p:any){
@@ -92,10 +99,10 @@ function weekScore(p:any,fixtures:any[],gw:number){
   return Number(Math.max(0,sum).toFixed(2));
 }
 function selectionScore(p:any,fixtures:any[],gw:number){
-  const current=weekScore(p,fixtures,gw);
   const projected=Number(p.projected||0);
+  const current=weekScore(p,fixtures,gw);
   const start=Number(p.startProbability||0)/100;
-  return projected>0 ? projected + current*.15 + start*.02 : current;
+  return projected*1000 + start + current*.001;
 }
 function buildXI(squad:any[],fixtures:any[],gw:number){
   const groups:any={1:[],2:[],3:[],4:[]};squad.forEach(x=>groups[x.player.position]?.push(x));
@@ -314,13 +321,16 @@ export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:nu
   const horizon=Math.min(38,gw+7),pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw)),byId=new Map(pool.map(p=>[p.id,p]));
   const current=picks.map(x=>{const player=byId.get(x.element);return{...x,player,purchasePrice:Number(x.purchase_price??x.purchasePrice??x.now_cost??player?.price??0)/10,sellPrice:Number(x.selling_price??x.now_cost??player?.price??0)/10}}).filter(x=>x.player);
   const built=buildXI(current,fixtures,gw),xi=built.xi,xiIds=new Set(xi.map(x=>x.player.id));
+  const currentStartingIds=new Set(picks.filter((x:any)=>x.position&&Number(x.position)<=11).map((x:any)=>x.element));
+  const currentXI=current.filter((x:any)=>currentStartingIds.has(x.player.id));
+
   const bench=current.filter(x=>!xiIds.has(x.player.id)).sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
   const starters=[...xi].sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
   const remaining=remainingChips(history,gw),usedChips=history?.chips||[];
   const chips=remaining.map((c:string)=>({chip:c,reason:chipReason(c,current,pool,fixtures,gw,history)}));
   return{
     pool,current,starters,bench,
-    transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),substitutionPlan:substitutionPlan(current,fixtures,gw),
+    transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),substitutionPlan:substitutionPlan(current,fixtures,gw),currentStartingXI:currentXI.map((x:any)=>x.player.name),
     bank:Number(bank||0),freeTransfers:getFT(history),currentGameweek:gw,
     rules:{squadSize:15,maxPlayersPerClub:3,formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",transferPositionLock:false,budgetConstraint:true,transferHit:4,maxFreeTransfers:5,sellingValueUsed:true,freeHitCannotBeConsecutive:true,twoChipSets:true,oneChipPerGameweek:true,chipResetGameweek:20},
     model:{name:"FPL Decision Engine v0.9",method:"probabilistic per-fixture expected points + 5-GW transfer search + chip opportunity-cost layer",horizon:6,transferHitPoints:4,principles:["Avoid hits unless projected 5-GW gain exceeds the 4-point cost","Preserve information value and avoid reactive price chasing","Captain the highest expected-value option; use ceiling only as a tie-break","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
