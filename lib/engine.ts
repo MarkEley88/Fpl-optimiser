@@ -178,7 +178,15 @@ function captainPlan(xi:any[],fixtures:any[],gw:number){
 }
 function clubCount(squad:any[],team:number){return squad.filter(x=>x.player.team===team).length}
 function validSquad(squad:any[]){return squad.length===15&&squad.filter(x=>x.player.position===1).length===2&&squad.filter(x=>x.player.position===2).length===5&&squad.filter(x=>x.player.position===3).length===5&&squad.filter(x=>x.player.position===4).length===3&&[...new Set(squad.map(x=>x.player.team))].every(t=>clubCount(squad,Number(t))<=3)}
-function getFT(history:any){const c=history?.current?.at(-1);const v=c?.event_transfers_available??c?.event_transfers;return Math.max(0,Math.min(5,Number(v??1)))}
+function getFT(history:any){
+  const c=history?.current?.at(-1);
+  // FPL's history endpoint can lag the current squad state. Prefer the
+  // explicitly reported available-transfer field, but fall back to 1 for a
+  // live gameweek when the field is absent rather than incorrectly showing 0.
+  const v=c?.event_transfers_available??c?.event_transfers;
+  if(v===null||v===undefined||v==="")return 1;
+  return Math.max(0,Math.min(5,Number(v)));
+}
 function chipUsed(history:any,chip:string,gw:number){
   const half=HALF(gw);
   return (history?.chips||[]).some((x:any)=>x.name===chip&&HALF(Number(x.event||gw))===half);
