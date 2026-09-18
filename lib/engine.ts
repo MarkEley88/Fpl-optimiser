@@ -55,7 +55,7 @@ function expectedFixturePoints(p:any,f:any,minutes:number){
   return app+goalsPts+assist+cs+saves+dc+bonus-concededPenalty-appearanceRisk-cards;
 }
 export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
-  const games=fixtures.filter(f=>f.event&&Number(f.event)>currentGw&&Number(f.event)<=horizon&&(f.team_h===p.team||f.team_a===p.team));
+  const games=fixtures.filter(f=>f.event&&Number(f.event)>=currentGw&&Number(f.event)<=horizon&&(f.team_h===p.team||f.team_a===p.team));
   const availability=minutesProb(p),mins=expectedMinutes(p),ppg=Number(p.points_per_game||0),form=Number(p.form||0),totalMinutes=Number(p.minutes||0);
   const xgi90=rate(p.expected_goal_involvements,totalMinutes,rate(Number(p.goals_scored||0)+Number(p.assists||0),totalMinutes));
   const per90=Math.max(0.05,(ppg/Math.max(.35,mins/90))*.55+xgi90*.7+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.25);
@@ -91,14 +91,20 @@ function weekScore(p:any,fixtures:any[],gw:number){
   const sum=scores.reduce((a,b)=>a+b,0);
   return Number(Math.max(0,sum).toFixed(2));
 }
+function selectionScore(p:any,fixtures:any[],gw:number){
+  const current=weekScore(p,fixtures,gw);
+  const projected=Number(p.projected||0);
+  const start=Number(p.startProbability||0)/100;
+  return projected>0 ? projected + current*.15 + start*.02 : current;
+}
 function buildXI(squad:any[],fixtures:any[],gw:number){
   const groups:any={1:[],2:[],3:[],4:[]};squad.forEach(x=>groups[x.player.position]?.push(x));
-  Object.values(groups).forEach((a:any[])=>a.sort((x,y)=>weekScore(y.player,fixtures,gw)-weekScore(x.player,fixtures,gw)));
+  Object.values(groups).forEach((a:any[])=>a.sort((x,y)=>selectionScore(y.player,fixtures,gw)-selectionScore(x.player,fixtures,gw)));
   let best:any[]=[],bestScore=-Infinity,formation="";
   for(const [d,m,f] of FORMATIONS){
     if(groups[1].length<1||groups[2].length<d||groups[3].length<m||groups[4].length<f)continue;
     const candidate=[...groups[1].slice(0,1),...groups[2].slice(0,d),...groups[3].slice(0,m),...groups[4].slice(0,f)];
-    const score=candidate.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
+    const score=candidate.reduce((s,x)=>s+selectionScore(x.player,fixtures,gw),0);
     if(score>bestScore){bestScore=score;best=candidate;formation="1-"+d+"-"+m+"-"+f}
   }
   return{xi:best,bestScore,formation};
@@ -289,8 +295,8 @@ export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:nu
   const horizon=Math.min(38,gw+7),pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw)),byId=new Map(pool.map(p=>[p.id,p]));
   const current=picks.map(x=>{const player=byId.get(x.element);return{...x,player,purchasePrice:Number(x.purchase_price??x.purchasePrice??x.now_cost??player?.price??0)/10,sellPrice:Number(x.selling_price??x.now_cost??player?.price??0)/10}}).filter(x=>x.player);
   const built=buildXI(current,fixtures,gw),xi=built.xi,xiIds=new Set(xi.map(x=>x.player.id));
-  const bench=current.filter(x=>!xiIds.has(x.player.id)).sort((a,b)=>weekScore(b.player,fixtures,gw)-weekScore(a.player,fixtures,gw));
-  const starters=[...xi].sort((a,b)=>weekScore(b.player,fixtures,gw)-weekScore(a.player,fixtures,gw));
+  const bench=current.filter(x=>!xiIds.has(x.player.id)).sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
+  const starters=[...xi].sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
   const remaining=remainingChips(history,gw),usedChips=history?.chips||[];
   const chips=remaining.map((c:string)=>({chip:c,reason:chipReason(c,current,pool,fixtures,gw,history)}));
   return{
