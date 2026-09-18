@@ -28,7 +28,7 @@ function fixtureFactor(p:any,fixtures:any[],gw:number){
   return fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;
 }
 function expectedFixturePoints(p:any,f:any,minutes:number){
-  const pos=Number(p.position),m=minutes/90,home=f.team_h===p.team;
+  const pos=Number(p.position??p.element_type),m=minutes/90,home=f.team_h===p.team;
   const diff=Number(home?f.team_h_difficulty:f.team_a_difficulty)||3;
   const ff=fixtureScore(f,p.team);
   const xg90=rate(p.expected_goals,p.minutes,rate(p.goals_scored,p.minutes));
