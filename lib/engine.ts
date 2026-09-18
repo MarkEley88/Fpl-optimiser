@@ -178,14 +178,20 @@ function captainPlan(xi:any[],fixtures:any[],gw:number){
 }
 function clubCount(squad:any[],team:number){return squad.filter(x=>x.player.team===team).length}
 function validSquad(squad:any[]){return squad.length===15&&squad.filter(x=>x.player.position===1).length===2&&squad.filter(x=>x.player.position===2).length===5&&squad.filter(x=>x.player.position===3).length===5&&squad.filter(x=>x.player.position===4).length===3&&[...new Set(squad.map(x=>x.player.team))].every(t=>clubCount(squad,Number(t))<=3)}
-function getFT(history:any){
+function getFT(history:any,currentGw=0){
   const c=history?.current?.at(-1);
-  // FPL's history endpoint can lag the current squad state. Prefer the
-  // explicitly reported available-transfer field, but fall back to 1 for a
-  // live gameweek when the field is absent rather than incorrectly showing 0.
-  const v=c?.event_transfers_available??c?.event_transfers;
-  if(v===null||v===undefined||v==="")return 1;
-  return Math.max(0,Math.min(5,Number(v)));
+  const lastEvent=Number(c?.event||0);
+  const v=c?.event_transfers_available;
+  // The history feed can still be one gameweek behind the live squad.
+  // If the latest history row is from a previous GW, one new free transfer
+  // has been added for the current GW (subject to the 5-transfer cap).
+  if(v!==null&&v!==undefined&&v!==""&&lastEvent<currentGw){
+    return Math.max(0,Math.min(5,Number(v)+1));
+  }
+  if(v!==null&&v!==undefined&&v!==""){
+    return Math.max(0,Math.min(5,Number(v)));
+  }
+  return 1;
 }
 function chipUsed(history:any,chip:string,gw:number){
   const half=HALF(gw);
@@ -352,7 +358,7 @@ function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:n
   return{squad,bank:Number((budget-cost).toFixed(1))};
 }
 function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:number,bank:number,history:any){
-  let states:any[]=[{squad:initial,bank,ft:getFT(history),total:0,steps:[],usedChips:[] as string[]}];
+  let states:any[]=[{squad:initial,bank,ft:getFT(history,startGw),total:0,steps:[],usedChips:[] as string[]}];
   for(let gw=startGw+1;gw<=Math.min(38,startGw+6);gw++){
     const next:any[]=[];
     for(const st of states){
@@ -446,7 +452,7 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
   return{
     pool,current,starters,bench,
     transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),substitutionPlan:substitutionPlan(current,fixtures,gw),currentStartingXI:currentXI.sort((a:any,b:any)=>Number(a.position)-Number(b.position)).map((x:any)=>x.player.name),currentBench:currentBench.sort((a:any,b:any)=>Number(a.position)-Number(b.position)).map((x:any)=>x.player.name),
-    bank:Number(bank||0),freeTransfers:getFT(history),currentGameweek:gw,
+    bank:Number(bank||0),freeTransfers:getFT(history,gw),currentGameweek:gw,
     rules:{squadSize:15,maxPlayersPerClub:3,formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",transferPositionLock:false,budgetConstraint:true,transferHit:4,maxFreeTransfers:5,sellingValueUsed:true,freeHitCannotBeConsecutive:true,twoChipSets:true,oneChipPerGameweek:true,chipResetGameweek:20},
     model:{name:"FPL Decision Engine v0.9",method:"probabilistic per-fixture expected points + 5-GW transfer search + chip opportunity-cost layer",horizon:6,transferHitPoints:4,principles:["Avoid hits unless projected 5-GW gain exceeds the 4-point cost","Preserve information value and avoid reactive price chasing","Captain the highest expected-value option; use ceiling only as a tie-break","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
     chips:{remaining,suggestions:chips,used:usedChips},
