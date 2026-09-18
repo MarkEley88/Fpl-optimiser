@@ -169,7 +169,8 @@ function apply(squad,bank,ft,a,season){
  const max=rulesFor(season).maxFT;
  if(a.type==="hold")return{squad,bank,ft:Math.min(max,ft+1),hit:0};
  if(a.type==="transfer")return{squad:squad.filter(x=>x.id!==a.o.id).concat(a.p),bank:Number((bank-a.cost).toFixed(1)),ft:Math.min(max,ft-1+1),hit:a.hit};
- return{squad:squad.filter(x=>x.id!==a.a.o.id&&x.id!==a.b.o.id).concat(a.a.p,a.b.p),bank:Number((bank-a.a.cost-a.b.cost).toFixed(1)),ft:Math.min(max,ft-2+1),hit:0};
+ if(a.type==="double")return{squad:squad.filter(x=>x.id!==a.a.o.id&&x.id!==a.b.o.id).concat(a.a.p,a.b.p),bank:Number((bank-a.a.cost-a.b.cost).toFixed(1)),ft:Math.min(max,ft-2+1),hit:0};
+ return{squad,bank,ft:Math.min(max,ft+1),hit:0};
 }
 function chipAvailability(season,gw,used){
  const r=rulesFor(season);const half=gw<=19?1:2;
