@@ -411,6 +411,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           if(gain.points<=base.points)continue;
           const nf=Math.min(5,st.ft-2+1);
           next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points,steps:[...st.steps,{gw,action:a.in.name+" for "+a.out.player.name+" + "+b.in.name+" for "+b.out.player.name,chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points).toFixed(2))}]});
+          }
         }
       }
       for(const chip of CHIP_NAMES){
