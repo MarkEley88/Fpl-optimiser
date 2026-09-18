@@ -166,13 +166,16 @@ function substitutionPlan(squad:any[],fixtures:any[],gw:number){
   const bench=squad.filter(x=>!xiIds.has(x.player.id));
   const rows:any[]=[];
   for(const b of bench){
-    const bp=selectionScore(b.player,fixtures,gw);
+    const trialXI=built.xi.map((s:any)=>s);
     for(const s of built.xi){
-      const samePosition=Number(b.player.position)===Number(s.player.position);
-      const gkSwap=Number(b.player.position)===1&&Number(s.player.position)===1;
-      if(!samePosition&&!gkSwap)continue;
-      const sp=selectionScore(s.player,fixtures,gw);
-      if(bp>sp+.15)rows.push({bench:b.player.name,starter:s.player.name,benchProjected:b.player.projected,starterProjected:s.player.projected,benchStart:b.player.startProbability,starterStart:s.player.startProbability,gain:Number((bp-sp).toFixed(2)),reason:"Legal bench-for-starter change: same position, with higher projected value."});
+      const replacement={...s,player:b.player};
+      const candidate=trialXI.map((x:any)=>x.player.id===s.player.id?replacement:x);
+      const counts=[1,2,3,4].map(pos=>candidate.filter((x:any)=>Number(x.player.position)===pos).length);
+      const legal=counts[0]===1&&counts[1]>=3&&counts[1]<=5&&counts[2]>=2&&counts[2]<=5&&counts[3]>=1&&counts[3]<=3;
+      if(!legal)continue;
+      const before=selectionScore(s.player,fixtures,gw),after=selectionScore(b.player,fixtures,gw);
+      if(after<=before+.15)continue;
+      rows.push({bench:b.player.name,starter:s.player.name,benchProjected:b.player.projected,starterProjected:s.player.projected,benchStart:b.player.startProbability,starterStart:s.player.startProbability,gain:Number((after-before).toFixed(2)),formation:"1-"+counts[1]+"-"+counts[2]+"-"+counts[3],reason:"Legal formation change: the replacement improves projected value while keeping a valid FPL starting formation."});
     }
   }
   return rows.sort((a,b)=>b.gain-a.gain).slice(0,5);
