@@ -58,7 +58,7 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
   const mins=expectedMinutes(p),ppg=Number(p.points_per_game||0),form=Number(p.form||0),totalMinutes=Number(p.minutes||0);
   const xgi90=rate(p.expected_goal_involvements,totalMinutes,rate(Number(p.goals_scored||0)+Number(p.assists||0),totalMinutes));
   const per90=Math.max(0.05,(ppg/Math.max(.35,mins/90))*.55+xgi90*.7+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.25);
-  const recent=Math.max(0,form)*.18+Math.max(0,ppg)*.32+per90*.35;
+  const hw=HISTORICAL_MODEL.weights;\n  const historicalSignal=clamp((Number(hw.form3||0)*form+Number(hw.form5||0)*form+Number(hw.xgi90||0)*xgi90+Number(hw.minutesRate||0)*availability),-2,2);\n  const recent=Math.max(0,form)*.18+Math.max(0,ppg)*.32+per90*.35+historicalSignal*.12;
   const availability=clamp(mins/90);
   const fixtureAvg=games.length?games.reduce((s,f)=>s+fixtureScore(f,p.team),0)/games.length:1;
   const next=games.length?games[0]:null;
