@@ -248,12 +248,19 @@ async function runSeason(season){
   total+=scored;
   // Online supervised update: every player with a historical appearance is a training example.
   // Error is measured only after the GW is complete.
-  const lr=.006;
+  // Small, normalized online updates prevent the coefficient vector from saturating.
+  // The previous trainer mixed normalized features with an unscaled error, which drove
+  // every coefficient to its hard cap and produced an unusable model.
+  const lr=.000005;
+  const prior={form3:.16,form5:.10,p90:.15,xgi90:.18,xg90:.05,xa90:.05,dc90:.07,startRate:.10,minutesRate:.14,bias:0};
   for(const p of pool){
    const y=actual(p.id,gw,d.byId);
-   const err=clamp(y-p.model,-8,8);
-   for(const k of KEYS)W[k]=clamp(W[k]+lr*err*((p[k]||0)), -1.5,1.5);
-   W.bias=clamp(W.bias+lr*err,-3,3);
+   const err=clamp(y-p.model,-8,8)/8;
+   for(const k of KEYS){
+    const shrink=.0000005*(W[k]-prior[k]);
+    W[k]=clamp(W[k]+lr*err*(p[k]||0)-shrink,-.75,.75);
+   }
+   W.bias=clamp(W.bias+lr*err,-.75,.75);
   }
   // A small action-level adjustment: hits that underperformed increase hit aversion.
   const last=events.at(-1);
