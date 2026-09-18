@@ -14,8 +14,7 @@ function fixtureScore(f:any,teamId:number){
   const venue=home?1.05:.95;
   // FPL difficulty is the primary signal; opponent rank strengthens it where available.
   // Lower rank number = stronger opponent, so strong opposition reduces the score.
-  const rankMap=(globalThis as any).__fplTeamRanks||{};
-  const rank=Number(rankMap[opponent]||0);
+  const rank=Number(home?f.team_a_rank:f.team_h_rank)||0;
   const rankFactor=rank?clamp(1-(10-rank)*.012,.88,1.12):1;
   return clamp((1-(diff-3)*.18)*venue*rankFactor,.45,1.5);
 }
