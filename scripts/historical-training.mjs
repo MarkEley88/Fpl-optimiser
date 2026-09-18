@@ -198,7 +198,8 @@ function chipGain(chip,squad,pool,preds,gw){
 
 async function load(season){
  const raw=csv(await get(ROOT+"/"+season+"/gws/merged_gw.csv"));
- const rows=raw.map(r=>({id:num(r.element),gw:num(r.GW||r.round||r.event),points:num(r.total_points),minutes:num(r.minutes),starts:num(r.starts),xg:num(r.expected_goals),xa:num(r.expected_assists),xgi:num(r.expected_goal_involvements),dc:num(r.defensive_contribution),value:num(r.value),team:num(r.team),pos:num(r.position)})).filter(r=>r.id&&r.gw);
+ const posMap={GK:1,DEF:2,MID:3,FWD:4,1:1,2:2,3:3,4:4};
+ const rows=raw.map(r=>({id:num(r.element),gw:num(r.GW||r.round||r.event),points:num(r.total_points),minutes:num(r.minutes),starts:num(r.starts),xg:num(r.expected_goals),xa:num(r.expected_assists),xgi:num(r.expected_goal_involvements),dc:num(r.defensive_contribution),value:num(r.value)/10,team:String(r.team||""),pos:posMap[String(r.position||"").trim()]||0})).filter(r=>r.id&&r.gw&&r.pos&&r.team);
  const byId=new Map(),byGw=new Map();
  for(const r of rows){if(!byId.has(r.id))byId.set(r.id,new Map());byId.get(r.id).set(r.gw,r);if(!byGw.has(r.gw))byGw.set(r.gw,[]);byGw.get(r.gw).push(r)}
  return{season,rows,byId,byGw};
