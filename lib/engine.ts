@@ -453,7 +453,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   }
   return states[0]?.steps||[];
 }
-export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null){
+export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,picksEntryHistory:any=null){
   const horizon=Math.min(38,gw+7);
   let pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw));
   // Enrich the current squad and the highest-value candidates with the live
