@@ -251,9 +251,8 @@ function candidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:nu
   return makeCandidates(squad,pool,bank,fixtures,startGw,horizon);
 }
 function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number,ft:number){
-  // Rank transfers by their cumulative effect across the upcoming fixture run,
-  // not simply by next-GW points. This lets the planner deliberately wait for
-  // a better transfer week when the incoming player's fixtures improve later.
+  // Rank transfers by cumulative future points while enforcing the squad,
+  // club, bank and free-transfer rules at the actual decision point.
   const horizon=Math.min(6,38-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw-1,horizon);
   const rows=all.map(x=>{
@@ -394,7 +393,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       const base=scoreState(st.squad,fixtures,gw,null);
       next.push({...st,ft:earned,total:st.total+base.points,steps:[...st.steps,{gw,action:"Hold",chip:null,bank:st.bank,ft:earned,formation:base.formation,cap:base.cap,projectedGain:0}]});
       const cs=strategicCandidates(st.squad,pool,st.bank,fixtures,gw,st.ft)
-        .filter((x:any)=>x.strategicDelta>0)
+        .filter((x:any)=>x.strategicDelta>0 && x.cost<=st.bank+.001)
         .slice(0,18);
       for(const c of cs){
         const hit=c.hit;
@@ -402,7 +401,11 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points-hit,steps:[...st.steps,{gw,action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points-hit).toFixed(2))}]});
       }
       if(st.ft>=2){
-        for(const a of cs.slice(0,10))for(const b of candidates(applyTransfer(st.squad,a),pool,Number((st.bank-a.cost).toFixed(1)),fixtures,gw,3).slice(0,10)){
+        for(const a of cs.slice(0,10)){
+          const afterA=applyTransfer(st.squad,a);
+          const bankAfterA=Number((st.bank-a.cost).toFixed(1));
+          if(bankAfterA<-.001)continue;
+          for(const b of candidates(afterA,pool,bankAfterA,fixtures,gw,3).slice(0,10)){
           const nb=Number((st.bank-a.cost-b.cost).toFixed(1));if(nb<-.001)continue;
           const sq=applyTransfer(applyTransfer(st.squad,a),b),gain=scoreState(sq,fixtures,gw,null);
           if(gain.points<=base.points)continue;
