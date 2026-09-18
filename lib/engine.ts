@@ -386,12 +386,15 @@ function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:n
 }
 function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:number,bank:number,history:any){
   let states:any[]=[{squad:initial,bank,ft:getFT(history,startGw),total:0,steps:[],usedChips:[] as string[]}];
-  for(let gw=startGw+1;gw<=Math.min(38,startGw+6);gw++){
+  // Start with the current gameweek so the displayed FT balance is the
+  // balance the manager actually has now. A free transfer is earned only
+  // when moving into the following gameweek.
+  for(let gw=startGw;gw<=Math.min(38,startGw+5);gw++){
     const next:any[]=[];
     for(const st of states){
       const earned=Math.min(5,st.ft+1);
       const base=scoreState(st.squad,fixtures,gw,null);
-      next.push({...st,ft:earned,total:st.total+base.points,steps:[...st.steps,{gw,action:"Hold",chip:null,bank:st.bank,ft:earned,formation:base.formation,cap:base.cap,projectedGain:0}]});
+      next.push({...st,ft:earned,total:st.total+base.points,steps:[...st.steps,{gw,action:"Hold",chip:null,bank:st.bank,ft:st.ft,formation:base.formation,cap:base.cap,projectedGain:0}]});
       const cs=strategicCandidates(st.squad,pool,st.bank,fixtures,gw,st.ft)
         .filter((x:any)=>x.strategicDelta>0 && x.cost<=st.bank+.001)
         .slice(0,18);
