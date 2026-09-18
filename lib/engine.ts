@@ -22,6 +22,33 @@ function fixtureScore(f:any,teamId:number){
   return clamp((1-(diff-3)*.18)*venue*rankFactor*formFactor,.42,1.55);
 }
 function eventFixtures(team:number,fixtures:any[],gw:number){return fixtures.filter(f=>Number(f.event)===gw&&(f.team_h===team||f.team_a===team))}
+function modelFeatures(p:any){
+  const mins=Math.max(1,Number(p.minutes||0)), apps=Math.max(1,Number(p.appearances||p.starts||0));
+  const p90=Number(p.points||0)/(mins/90);
+  const xgi90=rate(p.expected_goal_involvements,mins,rate(Number(p.goals_scored||0)+Number(p.assists||0),mins));
+  const xg90=rate(p.expected_goals,mins,rate(p.goals_scored,mins));
+  const xa90=rate(p.expected_assists,mins,rate(p.assists,mins));
+  const dc90=rate(p.defensive_contribution,mins);
+  return {
+    form3:Number(p.form||0),form5:Number(p.form||0),p90,xgi90,xg90,xa90,dc90,
+    startRate:Number(p.starts||0)/apps,minutesRate:mins/(90*apps)
+  };
+}
+function normaliseModelPool(rows:any[]){
+  const keys=["form3","form5","p90","xgi90","xg90","xa90","dc90","startRate","minutesRate"];
+  const stats:any={};
+  for(const k of keys){
+    const vals=rows.map(x=>Number(x[k]||0)),mean=vals.reduce((a,b)=>a+b,0)/Math.max(1,vals.length);
+    const sd=Math.sqrt(vals.reduce((a,v)=>a+(v-mean)**2,0)/Math.max(1,vals.length))||1;
+    stats[k]=[mean,sd];
+  }
+  return rows.map(x=>({...x,...Object.fromEntries(keys.map(k=>[k,(Number(x[k]||0)-stats[k][0])/stats[k][1]]))}));
+}
+function historicalModelScore(p:any){
+  const f=p.modelFeatures||{};
+  const w=HISTORICAL_MODEL.weights;
+  return Number(w.bias||0)+Object.entries(w).filter(([k])=>k!=="bias").reduce((s,[k,v])=>s+Number(v)*Number(f[k]||0),0);
+}
 function minutesProb(p:any){
   const s=p.status,c=p.chance_of_playing_next_round;
   if(s==="i"||s==="s"||s==="u")return 0;
@@ -68,8 +95,7 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
   const availability=minutesProb(p),mins=expectedMinutes(p),ppg=Number(p.points_per_game||0),form=Number(p.form||0),totalMinutes=Number(p.minutes||0);
   const xgi90=rate(p.expected_goal_involvements,totalMinutes,rate(Number(p.goals_scored||0)+Number(p.assists||0),totalMinutes));
   const per90=Math.max(0.05,(ppg/Math.max(.35,mins/90))*.55+xgi90*.7+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.25);
-  const hw=HISTORICAL_MODEL.weights;
-  const historicalSignal=clamp((Number(hw.form3||0)*form+Number(hw.form5||0)*form+Number(hw.xgi90||0)*xgi90+Number(hw.minutesRate||0)*availability),-2,2);
+  const historicalSignal=clamp(Number(p.historicalScore||0)*.55,-2,2);
   const recent=Math.max(0,form)*.18+Math.max(0,ppg)*.32+per90*.35+historicalSignal*.12;
   const fixtureAvg=games.length?games.reduce((s,f)=>s+fixtureScore(f,p.team),0)/games.length:1;
   const next=games.length?games[0]:null;
@@ -89,7 +115,7 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
     dc90:Number(rate(p.defensive_contribution,p.minutes).toFixed(2)),
     ceiling:Number((projection+(xgi90*2.2)+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.4).toFixed(2)),
     status:p.status,chanceOfPlaying:p.chance_of_playing_next_round,news:p.news||"",
-    raw:p
+    modelFeatures:modelFeatures(p),historicalScore:0,raw:p
   };
 }
 const posName=(p:number)=>({1:"Goalkeeper",2:"Defender",3:"Midfielder",4:"Forward"} as any)[p]||"Unknown";
@@ -339,7 +365,12 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   return states[0]?.steps||[];
 }
 export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null){
-  const horizon=Math.min(38,gw+7),pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw)),byId=new Map(pool.map(p=>[p.id,p]));
+  const horizon=Math.min(38,gw+7);
+  let pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw));
+  const norm=normaliseModelPool(pool.map(x=>({...x,...x.modelFeatures})));
+  const scored=norm.map(x=>({...x,historicalScore:historicalModelScore(x)}));
+  const byId=new Map(scored.map(p=>[p.id,p]));
+  pool=scored;
   const current=picks.map(x=>{const player=byId.get(x.element);return{...x,player,purchasePrice:Number(x.purchase_price??x.purchasePrice??x.now_cost??player?.price??0)/10,sellPrice:Number(x.selling_price??x.now_cost??player?.price??0)/10}}).filter(x=>x.player);
   const built=buildXI(current,fixtures,gw),xi=built.xi,xiIds=new Set(xi.map(x=>x.player.id));
   const currentXI=current.filter((x:any)=>Number((x as any).position||0)>=1&&Number((x as any).position||0)<=11);
