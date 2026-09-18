@@ -161,6 +161,20 @@ function makeCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],startG
 function candidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=5){
   return makeCandidates(squad,pool,bank,fixtures,startGw,horizon);
 }
+function substitutionPlan(squad:any[],fixtures:any[],gw:number){
+  const built=buildXI(squad,fixtures,gw),xiIds=new Set(built.xi.map(x=>x.player.id));
+  const bench=squad.filter(x=>!xiIds.has(x.player.id));
+  const rows:any[]=[];
+  for(const b of bench){
+    const bp=selectionScore(b.player,fixtures,gw);
+    const candidates=built.xi.filter((s:any)=>Number(s.player.position)===Number(b.player.position)||Number(b.player.position)===1||Number(s.player.position)===1);
+    for(const s of candidates){
+      const sp=selectionScore(s.player,fixtures,gw);
+      if(bp>sp+.15)rows.push({bench:b.player.name,starter:s.player.name,benchProjected:b.player.projected,starterProjected:s.player.projected,benchStart:b.player.startProbability,starterStart:s.player.startProbability,gain:Number((bp-sp).toFixed(2)),reason:"Higher projected value with comparable or better starting probability."});
+    }
+  }
+  return rows.sort((a,b)=>b.gain-a.gain).slice(0,5);
+}
 function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number){
   return candidates(squad,pool,bank,fixtures,gw,5).filter(x=>x.delta>0.35).slice(0,8).map(x=>({
     in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,
@@ -301,7 +315,7 @@ export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:nu
   const chips=remaining.map((c:string)=>({chip:c,reason:chipReason(c,current,pool,fixtures,gw,history)}));
   return{
     pool,current,starters,bench,
-    transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),
+    transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),substitutionPlan:substitutionPlan(current,fixtures,gw),
     bank:Number(bank||0),freeTransfers:getFT(history),currentGameweek:gw,
     rules:{squadSize:15,maxPlayersPerClub:3,formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",transferPositionLock:false,budgetConstraint:true,transferHit:4,maxFreeTransfers:5,sellingValueUsed:true,freeHitCannotBeConsecutive:true,twoChipSets:true,oneChipPerGameweek:true,chipResetGameweek:20},
     model:{name:"FPL Decision Engine v0.9",method:"probabilistic per-fixture expected points + 5-GW transfer search + chip opportunity-cost layer",horizon:6,transferHitPoints:4,principles:["Avoid hits unless projected 5-GW gain exceeds the 4-point cost","Preserve information value and avoid reactive price chasing","Captain the highest expected-value option; use ceiling only as a tie-break","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
