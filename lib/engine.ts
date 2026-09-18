@@ -179,7 +179,7 @@ function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,bu
   const byPos:any={1:[],2:[],3:[],4:[]};
   pool.forEach(p=>byPos[p.position]?.push(p));
   Object.values(byPos).forEach((a:any[])=>a.sort((x,y)=>weekScore(y,fixtures,gw+0)-weekScore(x,fixtures,gw+0)));
-  const limits:any={1:18,2:35,3:45,4:25}, beams:any=[{squad:[],cost:0,score:0,clubs:{}}];
+  const limits:any={1:18,2:35,3:45,4:25}; let beams:any=[{squad:[],cost:0,score:0,clubs:{}}];
   for(const pos of [1,2,3,4]){
     const need=pos===1?2:pos===2?5:pos===3?5:3,source=byPos[pos].slice(0,limits[pos]);
     let states=beams;
