@@ -204,6 +204,16 @@ function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){
   if(chip==="bboost")points+=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id)).reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
   return{points,xi:built.xi,formation:built.formation,cap};
 }
+function bestFutureCaptain(squad:any[],fixtures:any[],gw:number){
+  const end=gw<=19?19:38; const rows:any[]=[];
+  for(let g=gw+1;g<=end;g++){
+    const built=buildXI(squad,fixtures,g),cap=captainPlan(built.xi,fixtures,g).captain;
+    if(!cap)continue;
+    const score=weekScore(cap,fixtures,g);
+    rows.push({gw:g,score:Number(score.toFixed(2)),name:cap.name,double:eventFixtures(cap.team,fixtures,g).length>1});
+  }
+  return rows.sort((a,b)=>b.score-a.score)[0]||null;
+}
 function chipMetrics(squad:any[],fixtures:any[],gw:number){
   const doubles:any={};
   fixtures.filter(f=>Number(f.event)===gw).forEach(f=>{doubles[f.team_h]=(doubles[f.team_h]||0)+1;doubles[f.team_a]=(doubles[f.team_a]||0)+1});
@@ -213,7 +223,10 @@ function chipMetrics(squad:any[],fixtures:any[],gw:number){
   const base=scoreState(squad,fixtures,gw,null).points;
   const tc=cap?weekScore(cap,fixtures,gw):0;
   const bb=bench.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
-  return{doublePlayers,benchScore:bb,captainScore:tc,base,tcGain:tc,bbGain:bb};
+  const futureTC=bestFutureCaptain(squad,fixtures,gw);
+  const currentDouble=cap?eventFixtures(cap.team,fixtures,gw).length>1:false;
+  const tcOpportunity=Number((tc-(futureTC?.score||0)).toFixed(2));
+  return{doublePlayers,benchScore:bb,captainScore:tc,base,tcGain:tc,bbGain:bb,currentDouble,futureTC,tcOpportunity};
 }
 function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number){
   const byPos:any={1:[],2:[],3:[],4:[]};
@@ -250,16 +263,22 @@ function chipDecision(chip:string,squad:any[],pool:any[],fixtures:any[],gw:numbe
   const rebuilt=bestTemporarySquad(squad,pool,fixtures,gw,budget);
   return Math.max(0,scoreState(rebuilt.map(p=>({player:p})),fixtures,gw,null).points-m.base);
 }
-function chipThreshold(chip:string){return chip==="3xc"?1.0:chip==="bboost"?5.0:chip==="freehit"?3.0:4.0}
+function chipThreshold(chip:string){return chip==="3xc"?2.0:chip==="bboost"?5.0:chip==="freehit"?3.0:4.0}
 function chipShouldPlay(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,history:any){
   if(chipUsed(history,chip,gw))return false;
   if(gw===1&&(chip==="wildcard"||chip==="freehit"))return false;
   if(chip==="freehit"&&freeHitBlocked(history,gw))return false;
+  if(chip==="3xc"){
+    const m=chipMetrics(squad,fixtures,gw);
+    return m.currentDouble && m.tcGain>=chipThreshold(chip) && m.tcOpportunity>=1.5;
+  }
   return chipDecision(chip,squad,pool,fixtures,gw,history)>=chipThreshold(chip);
 }
 function chipReason(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,history:any){
   const gain=chipDecision(chip,squad,pool,fixtures,gw,history);
-  if(chipShouldPlay(chip,squad,pool,fixtures,gw,history))return "Model gain: +"+gain.toFixed(1)+" projected points versus not using the chip.";
+  const tc=chip==="3xc"?chipMetrics(squad,fixtures,gw):null;
+  if(chipShouldPlay(chip,squad,pool,fixtures,gw,history))return "Triple Captain: "+(tc?.currentDouble?"Double Gameweek":"strong opportunity")+". Expected captain score "+gain.toFixed(1)+"; best remaining benchmark "+(tc?.futureTC?.score??0).toFixed(1)+".";
+  if(chip==="3xc"&&tc?.futureTC)return "Hold: expected captain score "+gain.toFixed(1)+"; best remaining projected opportunity is "+tc.futureTC.name+" in GW"+tc.futureTC.gw+" at "+tc.futureTC.score.toFixed(1)+" points." ;
   return "Hold: estimated immediate gain is only +"+gain.toFixed(1)+" points; the optimiser will keep the chip for a stronger opportunity.";
 }
 function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number){
