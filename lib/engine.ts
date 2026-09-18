@@ -167,10 +167,12 @@ function substitutionPlan(squad:any[],fixtures:any[],gw:number){
   const rows:any[]=[];
   for(const b of bench){
     const bp=selectionScore(b.player,fixtures,gw);
-    const candidates=built.xi.filter((s:any)=>Number(s.player.position)===Number(b.player.position)||Number(b.player.position)===1||Number(s.player.position)===1);
-    for(const s of candidates){
+    for(const s of built.xi){
+      const samePosition=Number(b.player.position)===Number(s.player.position);
+      const gkSwap=Number(b.player.position)===1&&Number(s.player.position)===1;
+      if(!samePosition&&!gkSwap)continue;
       const sp=selectionScore(s.player,fixtures,gw);
-      if(bp>sp+.15)rows.push({bench:b.player.name,starter:s.player.name,benchProjected:b.player.projected,starterProjected:s.player.projected,benchStart:b.player.startProbability,starterStart:s.player.startProbability,gain:Number((bp-sp).toFixed(2)),reason:"Higher projected value with comparable or better starting probability."});
+      if(bp>sp+.15)rows.push({bench:b.player.name,starter:s.player.name,benchProjected:b.player.projected,starterProjected:s.player.projected,benchStart:b.player.startProbability,starterStart:s.player.startProbability,gain:Number((bp-sp).toFixed(2)),reason:"Legal bench-for-starter change: same position, with higher projected value."});
     }
   }
   return rows.sort((a,b)=>b.gain-a.gain).slice(0,5);
