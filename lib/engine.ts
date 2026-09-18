@@ -43,9 +43,9 @@ function buildXI(squad:any[],fixtures:any[],gw:number){
   let best:any[]=[];let bestScore=-Infinity;let formation="";
   for(const [d,m,f] of FORMATIONS){
     if(groups[1].length<1||groups[2].length<d||groups[3].length<m||groups[4].length<f)continue;
-    const xi=[...groups[1].slice(0,1),...groups[2].slice(0,d),...groups[3].slice(0,m),...groups[4].slice(0,f)];
-    const score=xi.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
-    if(score>bestScore){bestScore=score;best=xi;formation="1-"+d+"-"+m+"-"+f;}
+    const candidateXI=[...groups[1].slice(0,1),...groups[2].slice(0,d),...groups[3].slice(0,m),...groups[4].slice(0,f)];
+    const score=candidateXI.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
+    if(score>bestScore){bestScore=score;best=candidateXI;formation="1-"+d+"-"+m+"-"+f;}
   }
   return{xi,bestScore,formation};
 }
