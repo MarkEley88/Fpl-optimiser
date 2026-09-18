@@ -54,23 +54,23 @@ async function get(u){const r=await fetch(u);if(!r.ok)throw Error(r.status+" "+u
 function rulesFor(season){return RULES[season]||RULES["2025-26"]}
 
 function features(history){
- const last=history.slice(-1)[0]||{}, last3=history.slice(-3),last5=history.slice(-5);
- const mins=history.reduce((s,x)=>s+x.minutes,0), n=history.length;
- const p90=mins?history.reduce((s,x)=>s+x.points,0)/(mins/90):0;
- const xgi90=mins?history.reduce((s,x)=>s+x.xgi,0)/(mins/90):0;
- const xg90=mins?history.reduce((s,x)=>s+x.xg,0)/(mins/90):0;
- const xa90=mins?history.reduce((s,x)=>s+x.xa,0)/(mins/90):0;
- const dc90=mins?history.reduce((s,x)=>s+x.dc,0)/(mins/90):0;
+ const last=history.slice(-1)[0]||{},last3=history.slice(-3),last5=history.slice(-5);
+ const mins=Math.max(1,history.reduce((s,x)=>s+x.minutes,0)),n=history.length;
+ const per90=k=>history.reduce((s,x)=>s+num(x[k]),0)/(mins/90);
+ const avg=k=>mean(history.map(x=>num(x[k])));
+ const weighted=(rows,k)=>{const w=rows.map((_,i)=>i+1),den=mean(w)*rows.length||1;return rows.reduce((s,x,i)=>s+w[i]*num(x[k]),0)/den};
  return {
   id:last.id,pos:last.pos,team:last.team,price:last.value/10,
   form3:mean(last3.map(x=>x.points)),form5:mean(last5.map(x=>x.points)),
-  p90,xgi90,xg90,xa90,dc90,
-  startRate:history.reduce((s,x)=>s+x.starts,0)/Math.max(1,n),
-  minutesRate:mins/(90*Math.max(1,n))
+  p90:per90("points"),xgi90:per90("xgi"),xg90:per90("xg"),xa90:per90("xa"),dc90:per90("dc"),
+  bonus90:per90("bonus"),bps90:per90("bps"),ict90:per90("ict"),threat90:per90("threat"),
+  creativity90:per90("creativity"),influence90:per90("influence"),
+  goals90:per90("goals"),assists90:per90("assists"),saves90:per90("saves"),
+  cleanSheetRate:avg("clean_sheet"),startRate:history.reduce((s,x)=>s+num(x.starts),0)/Math.max(1,n),
+  minutesRate:mins/(90*Math.max(1,n)),recentMinutesRate:weighted(history,"minutes")/90
  };
 }
-
-const KEYS=["form3","form5","p90","xgi90","xg90","xa90","dc90","startRate","minutesRate"];
+const KEYS=["form3","form5","p90","xgi90","xg90","xa90","dc90","bonus90","bps90","ict90","threat90","creativity90","influence90","goals90","assists90","saves90","cleanSheetRate","startRate","minutesRate","recentMinutesRate"];
 let W={form3:.16,form5:.10,p90:.15,xgi90:.18,xg90:.05,xa90:.05,dc90:.07,startRate:.10,minutesRate:.14,bias:0};
 function rawScore(f){
  return W.bias+KEYS.reduce((s,k)=>s+(W[k]||0)*f[k],0);
@@ -200,7 +200,7 @@ function chipGain(chip,squad,pool,preds,gw){
 async function load(season){
  const raw=csv(await get(ROOT+"/"+season+"/gws/merged_gw.csv"));
  const posMap={GK:1,DEF:2,MID:3,FWD:4,1:1,2:2,3:3,4:4};
- const rows=raw.map(r=>({id:num(r.element),gw:num(r.GW||r.round||r.event),points:num(r.total_points),minutes:num(r.minutes),starts:num(r.starts),xg:num(r.expected_goals),xa:num(r.expected_assists),xgi:num(r.expected_goal_involvements),dc:num(r.defensive_contribution),value:num(r.value)/10,team:String(r.team||""),pos:posMap[String(r.position||"").trim()]||0})).filter(r=>r.id&&r.gw&&r.pos&&r.team);
+ const rows=raw.map(r=>({id:num(r.element),gw:num(r.GW||r.round||r.event),points:num(r.total_points),minutes:num(r.minutes),starts:num(r.starts),xg:num(r.expected_goals),xa:num(r.expected_assists),xgi:num(r.expected_goal_involvements),dc:num(r.defensive_contribution),bonus:num(r.bonus),bps:num(r.bps),ict:num(r.ict_index),threat:num(r.threat),creativity:num(r.creativity),influence:num(r.influence),goals:num(r.goals_scored),assists:num(r.assists),saves:num(r.saves),clean_sheet:num(r.clean_sheets),value:num(r.value)/10,team:String(r.team||""),pos:posMap[String(r.position||"").trim()]||0})).filter(r=>r.id&&r.gw&&r.pos&&r.team);
  const byId=new Map(),byGw=new Map();
  for(const r of rows){if(!byId.has(r.id))byId.set(r.id,new Map());byId.get(r.id).set(r.gw,r);if(!byGw.has(r.gw))byGw.set(r.gw,[]);byGw.get(r.gw).push(r)}
  return{season,rows,byId,byGw};
