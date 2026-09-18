@@ -222,7 +222,7 @@ async function runSeason(season){
   if(gw===1){
    for(const p of squad)preds.set(p.id,p.model);
   } else {
-   action=chooseAction(squad,pool,bank,ft,gw,season,preds,usedChips);
+   const action=chooseAction(squad,pool,bank,ft,gw,season,preds,usedChips);
    const applied=apply(squad,bank,ft,action,season);
    squad=applied.squad;bank=applied.bank;ft=applied.ft;hits+=applied.hit?1:0;
    events.push({gw,action:action.type,chip:action.chip||null,hit:applied.hit});
