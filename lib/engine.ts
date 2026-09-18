@@ -168,20 +168,20 @@ function candidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:nu
   return makeCandidates(squad,pool,bank,fixtures,startGw,horizon);
 }
 function substitutionPlan(squad:any[],fixtures:any[],gw:number){
-  const built=buildXI(squad,fixtures,gw),xiIds=new Set(built.xi.map(x=>x.player.id));
-  const bench=squad.filter(x=>!xiIds.has(x.player.id));
+  const currentXI=squad.filter((x:any)=>Number(x.position||0)>=1&&Number(x.position||0)<=11);
+  const currentBench=squad.filter((x:any)=>Number(x.position||0)>11);
   const rows:any[]=[];
-  for(const b of bench){
-    const trialXI=built.xi.map((s:any)=>s);
-    for(const s of built.xi){
-      const replacement={...s,player:b.player};
-      const candidate=trialXI.map((x:any)=>x.player.id===s.player.id?replacement:x);
-      const counts=[1,2,3,4].map(pos=>candidate.filter((x:any)=>Number(x.player.position)===pos).length);
+  if(currentXI.length!==11)return rows;
+  for(const b of currentBench){
+    for(const st of currentXI){
+      if(Number(b.player.position)===1&&Number(st.player.position)!==1)continue;
+      const trial=currentXI.map((x:any)=>x.player.id===st.player.id?{...x,player:b.player}:x);
+      const counts=[1,2,3,4].map(pos=>trial.filter((x:any)=>Number(x.player.position)===pos).length);
       const legal=counts[0]===1&&counts[1]>=3&&counts[1]<=5&&counts[2]>=2&&counts[2]<=5&&counts[3]>=1&&counts[3]<=3;
       if(!legal)continue;
-      const before=selectionScore(s.player,fixtures,gw),after=selectionScore(b.player,fixtures,gw);
+      const before=Number(st.player.projected||0),after=Number(b.player.projected||0);
       if(after<=before+.15)continue;
-      rows.push({bench:b.player.name,starter:s.player.name,benchProjected:b.player.projected,starterProjected:s.player.projected,benchStart:b.player.startProbability,starterStart:s.player.startProbability,gain:Number((after-before).toFixed(2)),formation:"1-"+counts[1]+"-"+counts[2]+"-"+counts[3],reason:"Legal formation change: the replacement improves projected value while keeping a valid FPL starting formation."});
+      rows.push({bench:b.player.name,starter:st.player.name,benchProjected:b.player.projected,starterProjected:st.player.projected,benchStart:b.player.startProbability,starterStart:st.player.startProbability,gain:Number((after-before).toFixed(2)),formation:"1-"+counts[1]+"-"+counts[2]+"-"+counts[3],reason:"Legal substitution from your current XI; it improves projected points while preserving formation rules."});
     }
   }
   return rows.sort((a,b)=>b.gain-a.gain).slice(0,5);
