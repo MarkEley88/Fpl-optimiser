@@ -87,19 +87,33 @@ function buildStart(pool){
  const need={1:2,2:5,3:5,4:3};
  let states=[{s:[],cost:0,score:0,clubs:{}}];
  for(const pos of [1,2,3,4]){
-  const src=pool.filter(p=>p.pos===pos).sort((a,b)=>b.model-a.model).slice(0,35);
+  const src=pool.filter(p=>p.pos===pos).sort((a,b)=>b.model-a.model).slice(0,100);
   for(let k=0;k<need[pos];k++){
    const next=[];
    for(const st of states)for(const p of src){
     if(st.s.some(x=>x.id===p.id))continue;
-    const cc=(st.clubs[p.team]||0)+1;if(cc>3)continue;
-    const cost=st.cost+p.price;if(cost>100)continue;
+    const cc=(st.clubs[p.team]||0)+1;
+    if(cc>3)continue;
+    const cost=Number((st.cost+p.price).toFixed(1));
+    if(cost>100)continue;
     next.push({s:[...st.s,p],cost,score:st.score+p.model,clubs:{...st.clubs,[p.team]:cc}});
    }
-   next.sort((a,b)=>b.score-a.score);states=next.slice(0,220);
+   // Keep a broad beam, but always retain cheaper alternatives so the final
+   // 15-player squad can still satisfy the £100m budget.
+   next.sort((a,b)=>b.score-a.score);
+   const seen=new Set(),kept=[];
+   for(const st of next){
+    const key=st.cost.toFixed(1)+"|"+Object.entries(st.clubs).sort((a,b)=>Number(a[0])-Number(b[0])).map(([t,n])=>t+":"+n).join(",");
+    if(seen.has(key))continue;
+    seen.add(key);kept.push(st);
+    if(kept.length>=5000)break;
+   }
+   states=kept;
+   if(!states.length)break;
   }
+  if(!states.length)break;
  }
- return states[0]?.s||[];
+ return states.sort((a,b)=>b.score-a.score)[0]?.s||[];
 }
 function actual(id,gw,byId){return byId.get(id)?.get(gw)?.points||0}
 function formations(s){
