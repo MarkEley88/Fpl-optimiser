@@ -161,3 +161,5 @@ export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:nu
     decisionPlan
   };
 }
+
+// V0.6 build verification marker
