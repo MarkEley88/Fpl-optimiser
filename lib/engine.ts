@@ -112,7 +112,12 @@ function chipUsed(history:any,chip:string,gw:number){
   const half=HALF(gw);
   return (history?.chips||[]).some((x:any)=>x.name===chip&&HALF(Number(x.event||gw))===half);
 }
-function remainingChips(history:any,gw:number){return CHIP_NAMES.filter(c=>!chipUsed(history,c,gw))}
+function freeHitBlocked(history:any,gw:number){
+  return (history?.chips||[]).some((x:any)=>x.name==="freehit"&&Number(x.event||0)===gw-1);
+}
+function remainingChips(history:any,gw:number){
+  return CHIP_NAMES.filter(c=>!chipUsed(history,c,gw));
+}
 function sellPrice(p:any){
   const current=Number(p.player?.price??p.price??0),purchase=Number(p.purchasePrice??p.purchase_price??current);
   if(current<=purchase)return current;
@@ -136,7 +141,8 @@ function makeCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],startG
     if(squad.some(x=>x.player.id===p.id))continue;
     const sell=sellPrice(o),cost=Number((p.price-sell).toFixed(1));
     if(cost>bank+.001)continue;
-    if(clubCount(squad,p.team)>=3&&p.team!==o.player.team)continue;\n    const trial=[...squad.filter(x=>x.player.id!==o.player.id),{element:p.id,player:p,purchasePrice:p.price,sellPrice:p.price}];\n    const counts=[1,2,3,4].map(pos=>trial.filter(x=>Number(x.player.position)===pos).length);\n    if(counts[0]!==2||counts[1]!==5||counts[2]!==5||counts[3]!==3)continue;
+    if(clubCount(squad,p.team)>=3&&p.team!==o.player.team)continue;
+    const trial=[...squad.filter(x=>x.player.id!==o.player.id),{element:p.id,player:p,purchasePrice:p.price,sellPrice:p.price}];\n    const counts=[1,2,3,4].map(pos=>trial.filter(x=>Number(x.player.position)===pos).length);\n    if(counts[0]!==2||counts[1]!==5||counts[2]!==5||counts[3]!==3)continue;
     const delta=multiWeekDelta(o,p,fixtures, startGw,horizon);
     out.push({out:o,in:p,cost,delta:Number(delta.toFixed(2))});
   }
@@ -210,6 +216,8 @@ function chipDecision(chip:string,squad:any[],pool:any[],fixtures:any[],gw:numbe
 function chipThreshold(chip:string){return chip==="3xc"?1.0:chip==="bboost"?5.0:chip==="freehit"?3.0:4.0}
 function chipShouldPlay(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,history:any){
   if(chipUsed(history,chip,gw))return false;
+  if(gw===1&&(chip==="wildcard"||chip==="freehit"))return false;
+  if(chip==="freehit"&&freeHitBlocked(history,gw))return false;
   return chipDecision(chip,squad,pool,fixtures,gw,history)>=chipThreshold(chip);
 }
 function chipReason(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,history:any){
