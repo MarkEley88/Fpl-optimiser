@@ -56,16 +56,33 @@ function historicalModelScore(p:any){
   const w=HISTORICAL_MODEL.weights;
   return Number(w.bias||0)+Object.entries(w).filter(([k])=>k!=="bias").reduce((s,[k,v])=>s+Number(v)*Number(f[k]||0),0);
 }
-function minutesProb(p:any){
+function availabilityProb(p:any){
   const s=p.status,c=p.chance_of_playing_next_round;
   if(s==="i"||s==="s"||s==="u")return 0;
   if(c!==null&&c!==undefined)return clamp(Number(c)/100);
-  const starts=Number(p.starts||0),minutes=Number(p.minutes||0);
-  if(!minutes&&!starts)return .2;
-  const startRate=starts/Math.max(1,Number(p.appearances||starts)||starts);
-  return clamp(.62+.28*clamp(startRate)+.08*clamp(minutes/90/Math.max(1,starts),0,1),.35,.98);
+  return 1;
 }
-function expectedMinutes(p:any){const s=minutesProb(p);return Math.round(s*82+(1-s)*12)}
+function startProbability(p:any){
+  if(!availabilityProb(p))return 0;
+  if(p.recentStartRate!==undefined){
+    const recent=clamp(Number(p.recentStartRate||0));
+    const season=Number(p.appearances||0)>0?clamp(Number(p.starts||0)/Number(p.appearances)):recent;
+    const recentMinutes=clamp(Number(p.recentMinutesRate||0));
+    return clamp(availabilityProb(p)*(.62*recent+.28*season+.10*recentMinutes),.02,.98);
+  }
+  const starts=Number(p.starts||0),apps=Number(p.appearances||0);
+  if(!apps&&!starts)return .2*availabilityProb(p);
+  const season=starts/Math.max(1,apps||starts);
+  const minutesRate=Number(p.minutes||0)/(90*Math.max(1,apps||starts));
+  return clamp(availabilityProb(p)*(.62*clamp(season)+.28*clamp(minutesRate)+.10),.02,.98);
+}
+function expectedMinutes(p:any){
+  const start=startProbability(p),availability=availabilityProb(p);
+  const startMinutes=Number(p.recentStartMinutes||0)||78;
+  const benchMinutes=Number(p.recentBenchMinutes||0)||18;
+  const benchAppear=availability*(1-start)*.72;
+  return Math.round(start*startMinutes+benchAppear*benchMinutes);
+}
 function rate(total:any,minutes:number,fallback=0){const m=Math.max(1,minutes);return Number(total||0)/(m/90)}
 function fixtureFactor(p:any,fixtures:any[],gw:number){
   const fs=eventFixtures(p.team,fixtures,gw);if(!fs.length)return 0;
@@ -92,13 +109,13 @@ function expectedFixturePoints(p:any,f:any,minutes:number){
   const bonus=clamp(bonusRate*m*.22,0,2.1);
   const goalsPts=goals*attack;
   const concededPenalty=(pos===1||pos===2)?Math.max(0,(1.05-ff)*.8*m):0;
-  const appearanceRisk=(1-minutesProb(p))*.45;
+  const appearanceRisk=(1-availabilityProb(p))*.45;
   const cards=.18*m;
   return app+goalsPts+assist+cs+saves+dc+bonus-concededPenalty-appearanceRisk-cards;
 }
 export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
   const games=fixtures.filter(f=>f.event&&Number(f.event)>=currentGw&&Number(f.event)<=horizon&&(f.team_h===p.team||f.team_a===p.team));
-  const availability=minutesProb(p),mins=expectedMinutes(p),ppg=Number(p.points_per_game||0),form=Number(p.form||0),totalMinutes=Number(p.minutes||0);
+  const availability=availabilityProb(p),start=startProbability(p),mins=expectedMinutes(p),ppg=Number(p.points_per_game||0),form=Number(p.form||0),totalMinutes=Number(p.minutes||0);
   const xgi90=rate(p.expected_goal_involvements,totalMinutes,rate(Number(p.goals_scored||0)+Number(p.assists||0),totalMinutes));
   const per90=Math.max(0.05,(ppg/Math.max(.35,mins/90))*.55+xgi90*.7+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.25);
   const historicalSignal=clamp(Number(p.historicalScore||0)*.55,-2,2);
@@ -114,7 +131,7 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
   const projection=clamp((nextPts*.58+recent*.42)*(.82+.18*fixtureAvg)*availability,0,20);
   return{
     id:p.id,name:p.web_name,team:p.team,position:p.element_type,price:Number(p.now_cost||0)/10,
-    startProbability:Math.round(availability*100),expectedMinutes:mins,fixtureScore:fixtureAvg,
+    startProbability:Math.round(start*100),availabilityProbability:Math.round(availability*100),expectedMinutes:mins,fixtureScore:fixtureAvg,
     projected:Number(projection.toFixed(2)),projectedHorizon:Number(expected.toFixed(2)),
     xg90:Number(rate(p.expected_goals,p.minutes,rate(p.goals_scored,p.minutes)).toFixed(3)),
     xa90:Number(rate(p.expected_assists,p.minutes,rate(p.assists,p.minutes)).toFixed(3)),
@@ -375,9 +392,36 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   }
   return states[0]?.steps||[];
 }
-export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null){
+export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null){
   const horizon=Math.min(38,gw+7);
   let pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw));
+  // Enrich the current squad and the highest-value candidates with the live
+  // element-summary history so starting probability reflects recent selection,
+  // not just season-long starts. This runs on every optimisation.
+  const priority=pool.slice().sort((a,b)=>weekScore(b,fixtures,gw)-weekScore(a,fixtures,gw));
+  const ids=[...new Set([...picks.map((x:any)=>Number(x.element)),...priority.slice(0,80).map((x:any)=>Number(x.id))])].filter(Boolean).slice(0,95);
+  if(ids.length){
+    const summaries=await Promise.all(ids.map(async id=>{
+      try{
+        const r=await fetch("https://fantasy.premierleague.com/api/element-summary/"+id+"/",{cache:"no-store",headers:{"User-Agent":"FPL-Optimiser/0.3"}});
+        if(!r.ok)return null;
+        return{id,data:await r.json()};
+      }catch{return null;}
+    }));
+    const byId=new Map(summaries.filter(Boolean).map((x:any)=>[x.id,x.data]));
+    pool=pool.map(p=>{
+      const h=(byId.get(Number(p.id))?.history||[]).filter((x:any)=>Number(x.round||0)<gw).slice(-6);
+      if(!h.length)return p;
+      const weights=h.map((_:any,i:number)=>i+1),den=weights.reduce((a,b)=>a+b,0);
+      const recentStartRate=h.reduce((s:any,x:any,i:number)=>s+weights[i]*(Number(x.starts||0)>0?1:0),0)/den;
+      const recentMinutesRate=h.reduce((s:any,x:any,i:number)=>s+weights[i]*clamp(Number(x.minutes||0)/90),0)/den;
+      const started=h.filter((x:any)=>Number(x.starts||0)>0);
+      const bench=h.filter((x:any)=>Number(x.starts||0)<=0&&Number(x.minutes||0)>0);
+      const recentStartMinutes=started.length?started.reduce((s:number,x:any)=>s+Number(x.minutes||0),0)/started.length:78;
+      const recentBenchMinutes=bench.length?bench.reduce((s:number,x:any)=>s+Number(x.minutes||0),0)/bench.length:18;
+      return{...p,recentStartRate,recentMinutesRate,recentStartMinutes,recentBenchMinutes};
+    });
+  }
   const norm=normaliseModelPool(pool.map(x=>({...x,...x.modelFeatures})));
   const scored=norm.map(x=>({...x,historicalScore:historicalModelScore(x)}));
   const byId=new Map(scored.map(p=>[p.id,p]));
