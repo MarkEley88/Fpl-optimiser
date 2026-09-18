@@ -22,16 +22,16 @@ function fixtureScore(f:any,teamId:number){
   return clamp((1-(diff-3)*.18)*venue*rankFactor*formFactor,.42,1.55);
 }
 function eventFixtures(team:number,fixtures:any[],gw:number){return fixtures.filter(f=>Number(f.event)===gw&&(f.team_h===team||f.team_a===team))}
-function modelFeatures(p:any){
-  const mins=Math.max(1,Number(p.minutes||0)), apps=Math.max(1,Number(p.appearances||p.starts||0));
-  const p90=Number(p.points||0)/(mins/90);
+function modelFeatures(p:any,currentGw=1){
+  const mins=Math.max(1,Number(p.minutes||0)), gws=Math.max(1,currentGw);
+  const p90=Number(p.total_points||p.points||0)/(mins/90);
   const xgi90=rate(p.expected_goal_involvements,mins,rate(Number(p.goals_scored||0)+Number(p.assists||0),mins));
   const xg90=rate(p.expected_goals,mins,rate(p.goals_scored,mins));
   const xa90=rate(p.expected_assists,mins,rate(p.assists,mins));
   const dc90=rate(p.defensive_contribution,mins);
   return {
     form3:Number(p.form||0),form5:Number(p.form||0),p90,xgi90,xg90,xa90,dc90,
-    startRate:Number(p.starts||0)/apps,minutesRate:mins/(90*apps)
+    startRate:Number(p.starts||0)/gws,minutesRate:mins/(90*gws)
   };
 }
 function normaliseModelPool(rows:any[]){
@@ -115,16 +115,21 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
     dc90:Number(rate(p.defensive_contribution,p.minutes).toFixed(2)),
     ceiling:Number((projection+(xgi90*2.2)+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.4).toFixed(2)),
     status:p.status,chanceOfPlaying:p.chance_of_playing_next_round,news:p.news||"",
-    modelFeatures:modelFeatures(p),historicalScore:0,raw:p
+    modelFeatures:modelFeatures(p,currentGw),historicalScore:0,raw:p
   };
 }
 const posName=(p:number)=>({1:"Goalkeeper",2:"Defender",3:"Midfielder",4:"Forward"} as any)[p]||"Unknown";
 
 function weekScore(p:any,fixtures:any[],gw:number){
   const fs=eventFixtures(p.team,fixtures,gw);if(!fs.length)return 0;
-  const scores=fs.map(f=>expectedFixturePoints(p.raw||p,f,expectedMinutes(p.raw||p)));
+  const raw=p.raw||p;
+  const scores=fs.map(f=>expectedFixturePoints(raw,f,expectedMinutes(raw)));
   const sum=scores.reduce((a,b)=>a+b,0);
-  return Number(Math.max(0,sum).toFixed(2));
+  const hs=Number(p.historicalScore||0);
+  const modelBase=clamp(2+hs*.55,0,10);
+  const currentBase=Math.max(0,sum);
+  const modelAdjusted=modelBase*fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;
+  return Number(Math.max(0,currentBase*.72+modelAdjusted*.28).toFixed(2));
 }
 function selectionScore(p:any,fixtures:any[],gw:number){
   const current=weekScore(p,fixtures,gw);
