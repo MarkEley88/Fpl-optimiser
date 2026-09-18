@@ -60,7 +60,71 @@ function buildXI(players:any[]){
   return best;
 }
 
-export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null){
+
+function teamFixtureScore(team:number, fixtures:any[], event:number){
+  const games=fixtures.filter(f=>Number(f.event)===event&&(f.team_h===team||f.team_a===team));
+  if(!games.length)return 0;
+  return games.reduce((s,f)=>s+fixtureScore(f,team),0)/games.length;
+}
+
+function playerWeekScore(p:any, fixtures:any[], event:number){
+  const fixture=teamFixtureScore(p.team,fixtures,event);
+  const next=fixture||p.fixtureScore||.5;
+  return Number((p.projected*(0.65+0.35*next)).toFixed(2));
+}
+
+function captainPlan(starters:any[], fixtures:any[], event:number){
+  const ranked=[...starters].map(x=>({...x,weekScore:playerWeekScore(x.player,fixtures,event)}))
+    .sort((a,b)=>b.weekScore-a.weekScore);
+  return {
+    captain:ranked[0]?.player||null,
+    vice:ranked[1]?.player||null,
+    candidates:ranked.slice(0,5).map(x=>({name:x.player.name,id:x.player.id,score:x.weekScore}))
+  };
+}
+
+function buildFiveWeekPlan(current:any[], pool:any[], fixtures:any[], gw:number){
+  const byId=new Map(pool.map(p=>[p.id,p]));
+  let squad=current.map(x=>({...x,player:byId.get(x.element)})).filter(x=>x.player);
+  const plan:any[]=[];
+  for(let event=gw+1;event<=gw+5;event++){
+    const projected=squad.map(x=>({...x,weekScore:playerWeekScore(x.player,fixtures,event)}));
+    const bestXI=buildXI(projected);
+    const captain=captainPlan(bestXI,fixtures,event);
+
+    const clubCount=(team:number)=>squad.filter(x=>x.player.team===team).length;
+    const weakest=[...squad].sort((a,b)=>playerWeekScore(a.player,fixtures,event)-playerWeekScore(b.player,fixtures,event));
+    let transfer:any=null;
+    for(const out of weakest){
+      const replacement=pool
+        .filter(p=>p.id!==out.player.id && !squad.some(x=>x.player.id===p.id))
+        .filter(p=>p.position===out.player.position)
+        .filter(p=>p.price<=out.player.price+0.5)
+        .filter(p=>clubCount(p.team)<3 || p.team===out.player.team)
+        .sort((a,b)=>playerWeekScore(b,fixtures,event)-playerWeekScore(a,fixtures,event))[0];
+      if(replacement){
+        const gain=playerWeekScore(replacement,fixtures,event)-playerWeekScore(out.player,fixtures,event);
+        if(gain>=1.0){
+          transfer={out:out.player.name,outId:out.player.id,in:replacement.name,inId:replacement.id,gain:Number(gain.toFixed(2))};
+          squad=squad.filter(x=>x.player.id!==out.player.id);
+          squad.push({element:replacement.id,player:replacement});
+          break;
+        }
+      }
+    }
+    plan.push({
+      gw:event,
+      formation:bestXI.length?bestXI.map(x=>posName(x.player.position)).join("-"):"",
+      transfer,
+      captain:captain.captain?.name||null,
+      captainId:captain.captain?.id||null,
+      vice:captain.vice?.name||null,
+      topCaptainCandidates:captain.candidates
+    });
+  }
+  return plan;
+}
+\nexport function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null){
   const horizon=gw+5;
   const pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw));
   const byId=new Map(pool.map(p=>[p.id,p]));
@@ -94,7 +158,7 @@ export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:nu
   }
   transferIdeas.sort((a,b)=>b.delta-a.delta);
 
-  const chips=history?.chips||[];
+  const fiveWeekPlan=buildFiveWeekPlan(current,pool,fixtures,gw);\n\n  const chips=history?.chips||[];
   const used=new Set(chips.map((c:any)=>c.name));
   const remaining=["wildcard","freehit","bboost","3xc"].filter(x=>!used.has(x));
   const futureFixtures=fixtures.filter(f=>f.event>gw && f.event<=gw+5);
@@ -123,6 +187,6 @@ export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:nu
       transferPositionLock:true,
       budgetConstraint:true
     },
-    chips:{remaining,suggestions:chipSuggestions,used:chips}
+    chips:{remaining,suggestions:chipSuggestions,used:chips},\n    fiveWeekPlan
   };
 }
