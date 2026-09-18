@@ -9,17 +9,24 @@ const CHIP_NAMES=["wildcard","freehit","bboost","3xc"];
 function fixtureScore(f:any,teamId:number){
   if(!f)return .5;
   const home=f.team_h===teamId;
-  const diff=Number(home?f.team_h_difficulty:f.team_a_difficulty)||3;
-  const opponent=Number(home?f.team_a:f.team_h);
   const venue=home?1.05:.95;
-  const rank=Number(home?f.team_a_rank:f.team_h_rank)||0;
-  const rankFactor=rank?clamp(1-(10-rank)*.012,.88,1.12):1;
+  // Do not use FPL's FDR. The optimiser uses the live league table position
+  // and live team form supplied by the bootstrap-static API instead.
+  const opponentRank=Number(home?f.team_a_rank:f.team_h_rank)||0;
+  const teamRank=Number(home?f.team_h_rank:f.team_a_rank)||0;
+  const rankFactor=opponentRank
+    ? clamp(1-(10-opponentRank)*.012,.88,1.12)
+    : 1;
   const teamForm=Number(home?f.team_h_form:f.team_a_form)||0;
   const opponentForm=Number(home?f.team_a_form:f.team_h_form)||0;
   const formFactor=teamForm||opponentForm
     ? clamp(1+(teamForm-opponentForm)*.018,.88,1.12)
     : 1;
-  return clamp((1-(diff-3)*.18)*venue*rankFactor*formFactor,.42,1.55);
+  // Small team-strength adjustment from the same live table data.
+  const teamRankFactor=teamRank
+    ? clamp(1+(10-teamRank)*.006,.94,1.06)
+    : 1;
+  return clamp(venue*rankFactor*teamRankFactor*formFactor,.55,1.45);
 }
 function eventFixtures(team:number,fixtures:any[],gw:number){return fixtures.filter(f=>Number(f.event)===gw&&(f.team_h===team||f.team_a===team))}
 function modelFeatures(p:any,currentGw=1){
@@ -66,7 +73,6 @@ function fixtureFactor(p:any,fixtures:any[],gw:number){
 }
 function expectedFixturePoints(p:any,f:any,minutes:number){
   const pos=Number(p.position??p.element_type),m=minutes/90,home=f.team_h===p.team;
-  const diff=Number(home?f.team_h_difficulty:f.team_a_difficulty)||3;
   const ff=fixtureScore(f,p.team);
   const xg90=rate(p.expected_goals,p.minutes,rate(p.goals_scored,p.minutes));
   const xa90=rate(p.expected_assists,p.minutes,rate(p.assists,p.minutes));
