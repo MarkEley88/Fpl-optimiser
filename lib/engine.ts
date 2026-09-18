@@ -47,7 +47,7 @@ function buildXI(squad:any[],fixtures:any[],gw:number){
     const score=candidateXI.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
     if(score>bestScore){bestScore=score;best=candidateXI;formation="1-"+d+"-"+m+"-"+f;}
   }
-  return{xi,bestScore,formation};
+  return{xi:best,bestScore,formation};
 }
 function captainPlan(xi:any[],fixtures:any[],gw:number){
   const ranked=[...xi].map(x=>({...x,score:weekScore(x.player,fixtures,gw)})).sort((a,b)=>b.score-a.score);
