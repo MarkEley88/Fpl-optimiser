@@ -91,7 +91,9 @@ export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:nu
   }
   transferIdeas.sort((a,b)=>b.delta-a.delta);
 
-  const decisionPlan=buildDecisionPlan(current,pool,fixtures,gw,bank,history);\n\n  const chips=history?.chips||[];
+  const decisionPlan=buildDecisionPlan(current,pool,fixtures,gw,bank,history);
+
+  const chips=history?.chips||[];
 
   return {
     pool,current,starters,bench,transferIdeas:transferIdeas.slice(0,8),
@@ -103,6 +105,7 @@ export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:nu
       transferPositionLock:true,
       budgetConstraint:true,transferHit:4,maxFreeTransfers:5
     },
-    chips:{remaining,suggestions:chipSuggestions,used:chips},\n    decisionPlan
+    chips:{remaining,suggestions:chipSuggestions,used:chips},
+    decisionPlan
   };
 }
