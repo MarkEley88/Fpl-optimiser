@@ -1,3 +1,4 @@
+import {HISTORICAL_MODEL} from "./historical-model";
 export type Player=any;
 
 const clamp=(n:number,a=0,b=1)=>Math.max(a,Math.min(b,n));
@@ -55,10 +56,12 @@ function expectedFixturePoints(p:any,f:any,minutes:number){
 }
 export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
   const games=fixtures.filter(f=>f.event&&Number(f.event)>currentGw&&Number(f.event)<=horizon&&(f.team_h===p.team||f.team_a===p.team));
-  const mins=expectedMinutes(p),ppg=Number(p.points_per_game||0),form=Number(p.form||0),totalMinutes=Number(p.minutes||0);
+  const availability=minutesProb(p),mins=expectedMinutes(p),ppg=Number(p.points_per_game||0),form=Number(p.form||0),totalMinutes=Number(p.minutes||0);
   const xgi90=rate(p.expected_goal_involvements,totalMinutes,rate(Number(p.goals_scored||0)+Number(p.assists||0),totalMinutes));
   const per90=Math.max(0.05,(ppg/Math.max(.35,mins/90))*.55+xgi90*.7+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.25);
-  const hw=HISTORICAL_MODEL.weights;\n  const historicalSignal=clamp((Number(hw.form3||0)*form+Number(hw.form5||0)*form+Number(hw.xgi90||0)*xgi90+Number(hw.minutesRate||0)*availability),-2,2);\n  const recent=Math.max(0,form)*.18+Math.max(0,ppg)*.32+per90*.35+historicalSignal*.12;
+  const hw=HISTORICAL_MODEL.weights;
+  const historicalSignal=clamp((Number(hw.form3||0)*form+Number(hw.form5||0)*form+Number(hw.xgi90||0)*xgi90+Number(hw.minutesRate||0)*availability),-2,2);
+  const recent=Math.max(0,form)*.18+Math.max(0,ppg)*.32+per90*.35+historicalSignal*.12;
   const fixtureAvg=games.length?games.reduce((s,f)=>s+fixtureScore(f,p.team),0)/games.length:1;
   const next=games.length?games[0]:null;
   const nextPts=next?Math.max(0,expectedFixturePoints(p,next,mins)):0;
@@ -141,7 +144,9 @@ function makeCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],startG
     const sell=sellPrice(o),cost=Number((p.price-sell).toFixed(1));
     if(cost>bank+.001)continue;
     if(clubCount(squad,p.team)>=3&&p.team!==o.player.team)continue;
-    const trial=[...squad.filter(x=>x.player.id!==o.player.id),{element:p.id,player:p,purchasePrice:p.price,sellPrice:p.price}];\n    const counts=[1,2,3,4].map(pos=>trial.filter(x=>Number(x.player.position)===pos).length);\n    if(counts[0]!==2||counts[1]!==5||counts[2]!==5||counts[3]!==3)continue;
+    const trial=[...squad.filter(x=>x.player.id!==o.player.id),{element:p.id,player:p,purchasePrice:p.price,sellPrice:p.price}];
+    const counts=[1,2,3,4].map(pos=>trial.filter(x=>Number(x.player.position)===pos).length);
+    if(counts[0]!==2||counts[1]!==5||counts[2]!==5||counts[3]!==3)continue;
     const delta=multiWeekDelta(o,p,fixtures, startGw,horizon);
     out.push({out:o,in:p,cost,delta:Number(delta.toFixed(2))});
   }
