@@ -159,13 +159,12 @@ function chipAvailability(season,gw,used){
  const r=rulesFor(season);const half=gw<=19?1:2;
  const available=[];
  for(const c of ["wc","fh","bb","tc"]){
-  const total=r.chips[c]||0;
   if(r.chips[c]===2){
-   const key=c+"-"+half;if(!used.has(key))available.push(c)
-  } else if(!used.has(c))available.push(c);
+   const key=c+"-"+half;
+   if(!used.has(key))available.push(c);
+  } else if(!used.has(c)&&r.chips[c]) available.push(c);
  }
  if(gw===1) return available.filter(c=>c!=="wc"&&c!=="fh");
- if(season==="2021-22"&&gw<20) return available.filter(c=>c!=="fh"||!used.has("fh"));
  return available;
 }
 function chipGain(chip,squad,pool,preds,gw){
@@ -206,7 +205,7 @@ async function runSeason(season){
   if(gw===1){
    for(const p of squad)preds.set(p.id,p.model);
   } else {
-   const action=chooseAction(squad,pool,bank,ft,gw,season,preds,usedChips);
+   action=chooseAction(squad,pool,bank,ft,gw,season,preds,usedChips);
    const applied=apply(squad,bank,ft,action,season);
    squad=applied.squad;bank=applied.bank;ft=applied.ft;hits+=applied.hit?1:0;
    events.push({gw,action:action.type,chip:action.chip||null,hit:applied.hit});
@@ -217,7 +216,10 @@ async function runSeason(season){
   const capActual=actual(cap?.id,gw,d.byId);
   let scored=actualXI+capActual;
   if(action?.type==="chip"){
-    usedChips.add(action.chip);
+    if(action.chip){
+      const chipRule=rulesFor(season).chips[action.chip]||0;
+      usedChips.add(chipRule===2?action.chip+"-"+(gw<=19?1:2):action.chip);
+    }
     if(action.chip==="tc") scored+=capActual;
     if(action.chip==="bb"){
       const benchPlayers=squad.filter(p=>!xi.some(x=>x.id===p.id));
