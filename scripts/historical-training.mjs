@@ -42,7 +42,7 @@ function csv(t){
   if(q){if(ch==='"'&&nx==='"'){c+='"';i++}else if(ch==='"')q=false;else c+=ch}
   else if(ch==='"')q=true;
   else if(ch===','){r.push(c);c="";}
-  else if(ch==='\n'){r.push(c.replace(/\\r$/,""));rows.push(r);r=[];c="";}
+  else if(ch==="\n"){r.push(c.replace(/\r$/,""));rows.push(r);r=[];c="";}
   else c+=ch;
  }
  if(c||r.length){r.push(c);rows.push(r)}
