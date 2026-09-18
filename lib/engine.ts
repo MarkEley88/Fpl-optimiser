@@ -42,89 +42,22 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=5,currentGw=0){
 }
 
 const posName=(p:number)=>({1:"Goalkeeper",2:"Defender",3:"Midfielder",4:"Forward"} as any)[p]||"Unknown";
+const FORMATIONS=[[3,4,3],[3,5,2],[4,4,2],[4,5,1],[4,3,3],[5,4,1],[5,3,2],[5,2,3]];
 
-function buildXI(players:any[]){
-  const groups:any={1:[],2:[],3:[],4:[]};
-  players.forEach(x=>groups[x.player.position]?.push(x));
-  Object.values(groups).forEach((a:any[])=>a.sort((x,y)=>y.player.projected-x.player.projected));
-
-  // Evaluate standard FPL formations and take the highest projected valid XI.
-  const formations=[[3,4,3],[3,5,2],[4,4,2],[4,5,1],[4,3,3],[5,4,1],[5,3,2],[5,2,3]];
-  let best:any[]=[]; let bestScore=-Infinity;
-  for(const [d,m,f] of formations){
-    if(groups[1].length<1||groups[2].length<d||groups[3].length<m||groups[4].length<f) continue;
-    const xi=[...groups[1].slice(0,1),...groups[2].slice(0,d),...groups[3].slice(0,m),...groups[4].slice(0,f)];
-    const score=xi.reduce((s,x)=>s+x.player.projected,0);
-    if(score>bestScore){bestScore=score;best=xi;}
-  }
-  return best;
-}
-
-
-function teamFixtureScore(team:number, fixtures:any[], event:number){
-  const games=fixtures.filter(f=>Number(f.event)===event&&(f.team_h===team||f.team_a===team));
-  if(!games.length)return 0;
-  return games.reduce((s,f)=>s+fixtureScore(f,team),0)/games.length;
-}
-
-function playerWeekScore(p:any, fixtures:any[], event:number){
-  const fixture=teamFixtureScore(p.team,fixtures,event);
-  const next=fixture||p.fixtureScore||.5;
-  return Number((p.projected*(0.65+0.35*next)).toFixed(2));
-}
-
-function captainPlan(starters:any[], fixtures:any[], event:number){
-  const ranked=[...starters].map(x=>({...x,weekScore:playerWeekScore(x.player,fixtures,event)}))
-    .sort((a,b)=>b.weekScore-a.weekScore);
-  return {
-    captain:ranked[0]?.player||null,
-    vice:ranked[1]?.player||null,
-    candidates:ranked.slice(0,5).map(x=>({name:x.player.name,id:x.player.id,score:x.weekScore}))
-  };
-}
-
-function buildFiveWeekPlan(current:any[], pool:any[], fixtures:any[], gw:number){
-  const byId=new Map(pool.map(p=>[p.id,p]));
-  let squad=current.map(x=>({...x,player:byId.get(x.element)})).filter(x=>x.player);
-  const plan:any[]=[];
-  for(let event=gw+1;event<=gw+5;event++){
-    const projected=squad.map(x=>({...x,weekScore:playerWeekScore(x.player,fixtures,event)}));
-    const bestXI=buildXI(projected);
-    const captain=captainPlan(bestXI,fixtures,event);
-
-    const clubCount=(team:number)=>squad.filter(x=>x.player.team===team).length;
-    const weakest=[...squad].sort((a,b)=>playerWeekScore(a.player,fixtures,event)-playerWeekScore(b.player,fixtures,event));
-    let transfer:any=null;
-    for(const out of weakest){
-      const replacement=pool
-        .filter(p=>p.id!==out.player.id && !squad.some(x=>x.player.id===p.id))
-        .filter(p=>p.position===out.player.position)
-        .filter(p=>p.price<=out.player.price+0.5)
-        .filter(p=>clubCount(p.team)<3 || p.team===out.player.team)
-        .sort((a,b)=>playerWeekScore(b,fixtures,event)-playerWeekScore(a,fixtures,event))[0];
-      if(replacement){
-        const gain=playerWeekScore(replacement,fixtures,event)-playerWeekScore(out.player,fixtures,event);
-        if(gain>=1.0){
-          transfer={out:out.player.name,outId:out.player.id,in:replacement.name,inId:replacement.id,gain:Number(gain.toFixed(2))};
-          squad=squad.filter(x=>x.player.id!==out.player.id);
-          squad.push({element:replacement.id,player:replacement});
-          break;
-        }
-      }
-    }
-    plan.push({
-      gw:event,
-      formation:bestXI.length?bestXI.map(x=>posName(x.player.position)).join("-"):"",
-      transfer,
-      captain:captain.captain?.name||null,
-      captainId:captain.captain?.id||null,
-      vice:captain.vice?.name||null,
-      topCaptainCandidates:captain.candidates
-    });
-  }
-  return plan;
-}
-\nexport function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null){
+function eventFixtures(team:number,fixtures:any[],gw:number){return fixtures.filter(f=>Number(f.event)===gw&&(f.team_h===team||f.team_a===team));}
+function weekScore(p:any,fixtures:any[],gw:number){const fs=eventFixtures(p.team,fixtures,gw);if(!fs.length)return 0;const fixture=fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;return Number((p.projected*(.55+.45*fixture)*Math.min(1.45,1+.35*(fs.length-1))).toFixed(2));}
+function buildXI(squad:any[],fixtures:any[],gw:number){const groups:any={1:[],2:[],3:[],4:[]};squad.forEach(x=>groups[x.player.position]?.push(x));Object.values(groups).forEach((a:any[])=>a.sort((x,y)=>weekScore(y.player,fixtures,gw)-weekScore(x.player,fixtures,gw)));let best:any[]=[];let bestScore=-Infinity;let formation="";for(const [d,m,f] of FORMATIONS){if(groups[1].length<1||groups[2].length<d||groups[3].length<m||groups[4].length<f)continue;const xi=[...groups[1].slice(0,1),...groups[2].slice(0,d),...groups[3].slice(0,m),...groups[4].slice(0,f)];const score=xi.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);if(score>bestScore){bestScore=score;best=xi;formation="1-"+d+"-"+m+"-"+f;}}return{xi,bestScore,formation};}
+function captainPlan(xi:any[],fixtures:any[],gw:number){const ranked=[...xi].map(x=>({...x,score:weekScore(x.player,fixtures,gw)})).sort((a,b)=>b.score-a.score);return{captain:ranked[0]?.player||null,vice:ranked[1]?.player||null,candidates:ranked.slice(0,5).map(x=>({name:x.player.name,id:x.player.id,score:x.score}))};}
+function clubCount(squad:any[],team:number){return squad.filter(x=>x.player.team===team).length;}
+function validSquad(squad:any[]){return squad.length===15&&squad.filter(x=>x.player.position===1).length===2&&squad.filter(x=>x.player.position===2).length===5&&squad.filter(x=>x.player.position===3).length===5&&squad.filter(x=>x.player.position===4).length===3&&[...new Set(squad.map(x=>x.player.team))].every(t=>clubCount(squad,t as number)<=3);}
+function getFT(history:any){const c=history?.current?.at(-1);return Math.max(1,Math.min(5,Number(c?.event_transfers_available??c?.event_transfers??1)));}
+function remainingChips(history:any){const used=new Set((history?.chips||[]).map((x:any)=>x.name));return["wildcard","freehit","bboost","3xc"].filter(x=>!used.has(x));}
+function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){const built=buildXI(squad,fixtures,gw),cap=captainPlan(built.xi,fixtures,gw);let points=built.xi.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);if(cap.captain)points+=weekScore(cap.captain,fixtures,gw)*(chip==="3xc"?2:1);if(chip==="bboost")points+=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id)).reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);return{points,xi:built.xi,formation:built.formation,cap};}
+function makeCandidates(squad:any[],pool:any[],bank:number){const candidates:any[]=[];for(const o of squad)for(const p of pool){if(squad.some(x=>x.player.id===p.id)||p.position!==o.player.position)continue;if(p.price>o.player.price+bank+.001)continue;if(clubCount(squad,p.team)>=3&&p.team!==o.player.team)continue;candidates.push({out:o,in:p});}return candidates.sort((a,b)=>(b.in.projected-b.out.player.projected)-(a.in.projected-a.out.player.projected)).slice(0,20);}
+function applyTransfer(squad:any[],t:any){return[...squad.filter(x=>x.player.id!==t.out.player.id),{element:t.in.id,player:t.in}];}
+function chipReason(chip:string,squad:any[],fixtures:any[],gw:number){const doubles:any={};fixtures.filter(f=>Number(f.event)===gw).forEach(f=>{doubles[f.team_h]=(doubles[f.team_h]||0)+1;doubles[f.team_a]=(doubles[f.team_a]||0)+1;});const doublePlayers=squad.filter(x=>(doubles[x.player.team]||0)>1).length;const built=buildXI(squad,fixtures,gw),bench=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id));if(chip==="bboost")return doublePlayers>=5||bench.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0)>=12?"Strong when the bench also has a double gameweek.":"Hold for a stronger double-gameweek bench.";if(chip==="3xc")return doublePlayers>0?"Use only with a high-projection captain who has a confirmed double.":"Hold for a suitable double-gameweek captain.";if(chip==="freehit")return"Reserve for a blank/double gameweek where your squad has poor coverage.";return"Use when several positions need changing or before a major fixture swing.";}
+function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:number,bank:number,history:any){const chips=remainingChips(history);let states:any[]=[{squad:initial,bank,ft:getFT(history),total:0,steps:[]}];for(let gw=startGw+1;gw<=startGw+6;gw++){const next:any[]=[];for(const st of states){const base=scoreState(st.squad,fixtures,gw,null);next.push({...st,total:st.total+base.points,steps:[...st.steps,{gw,action:"Hold transfer",chip:null,bank:st.bank,ft:Math.min(5,st.ft+1),formation:base.formation,cap:base.cap}]});const t=makeCandidates(st.squad,pool,st.bank).find(x=>x.in.projected>x.out.player.projected);if(t){const gain=scoreState(applyTransfer(st.squad,t),fixtures,gw,null),delta=gain.points-base.points,hit=st.ft>0?0:4;if(delta>hit){const sq=applyTransfer(st.squad,t),cost=t.in.price-t.out.player.price;next.push({squad:sq,bank:st.bank-cost,ft:Math.min(5,Math.max(0,st.ft-1)+1),total:st.total+gain.points-hit,steps:[...st.steps,{gw,action:t.in.name+" for "+t.out.player.name+(hit?" (-4 hit)":""),chip:null,bank:st.bank-cost,ft:Math.min(5,Math.max(0,st.ft-1)+1),formation:gain.formation,cap:gain.cap}]});}}for(const chip of chips){if(chip!=="bboost"&&chip!=="3xc")continue;const gain=scoreState(st.squad,fixtures,gw,chip);if(gain.points>base.points)next.push({...st,total:st.total+gain.points,steps:[...st.steps,{gw,action:"Hold transfer",chip:chip==="bboost"?"Bench Boost":"Triple Captain",bank:st.bank,ft:Math.min(5,st.ft+1),formation:gain.formation,cap:gain.cap}]});}}next.sort((a,b)=>b.total-a.total);states=next.slice(0,8);}return states[0]?.steps||[];}
+export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null){
   const horizon=gw+5;
   const pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw));
   const byId=new Map(pool.map(p=>[p.id,p]));
@@ -158,35 +91,18 @@ function buildFiveWeekPlan(current:any[], pool:any[], fixtures:any[], gw:number)
   }
   transferIdeas.sort((a,b)=>b.delta-a.delta);
 
-  const fiveWeekPlan=buildFiveWeekPlan(current,pool,fixtures,gw);\n\n  const chips=history?.chips||[];
-  const used=new Set(chips.map((c:any)=>c.name));
-  const remaining=["wildcard","freehit","bboost","3xc"].filter(x=>!used.has(x));
-  const futureFixtures=fixtures.filter(f=>f.event>gw && f.event<=gw+5);
-  const avgFixture=futureFixtures.length
-    ? futureFixtures.reduce((s,f)=>s+(Number(f.team_h_difficulty||3)+Number(f.team_a_difficulty||3))/2,0)/futureFixtures.length
-    : 3;
-  const chipSuggestions:any[]=[];
-  if(remaining.includes("bboost") && bench.length>=3 && bench.reduce((s,x)=>s+x.player.projected,0)>=12)
-    chipSuggestions.push({chip:"Bench Boost",reason:"Your bench has meaningful projected points across the next five gameweeks."});
-  if(remaining.includes("3xc")){
-    const captain=[...starters].sort((a,b)=>b.player.projected-a.player.projected)[0];
-    if(captain) chipSuggestions.push({chip:"Triple Captain",reason:"Monitor "+captain.player.name+" when a confirmed double gameweek appears; do not use it on a normal single fixture."});
-  }
-  if(remaining.includes("freehit") && avgFixture>=3.5)
-    chipSuggestions.push({chip:"Free Hit",reason:"Keep available for a blank/double gameweek rather than forcing a normal-week use."});
-  if(remaining.includes("wildcard"))
-    chipSuggestions.push({chip:"Wildcard",reason:"Review squad structure when multiple fixture swings or a blank/double gameweek create a larger opportunity."});
-  if(!chipSuggestions.length) chipSuggestions.push({chip:"No immediate chip",reason:"Hold chips until a confirmed blank/double gameweek or a materially stronger fixture opportunity."});
+  const decisionPlan=buildDecisionPlan(current,pool,fixtures,gw,bank,history);\n\n  const chips=history?.chips||[];
 
   return {
     pool,current,starters,bench,transferIdeas:transferIdeas.slice(0,8),
     bank:Number(bank||0),
+    freeTransfers:getFT(history),currentGameweek:gw,
     rules:{
       squadSize:15,maxPlayersPerClub:3,
       formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",
       transferPositionLock:true,
-      budgetConstraint:true
+      budgetConstraint:true,transferHit:4,maxFreeTransfers:5
     },
-    chips:{remaining,suggestions:chipSuggestions,used:chips},\n    fiveWeekPlan
+    chips:{remaining,suggestions:chipSuggestions,used:chips},\n    decisionPlan
   };
 }
