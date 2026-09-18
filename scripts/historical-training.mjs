@@ -219,10 +219,11 @@ async function runSeason(season){
    if(h.length)featureList.push(features(h));
   }
   const norm=normalise(featureList),pool=norm.map(f=>({...f,model:predict(f)})),preds=new Map(pool.map(p=>[p.id,p.model]));
+  let action={type:"hold",chip:null,value:0};
   if(gw===1){
    for(const p of squad)preds.set(p.id,p.model);
   } else {
-   const action=chooseAction(squad,pool,bank,ft,gw,season,preds,usedChips);
+   action=chooseAction(squad,pool,bank,ft,gw,season,preds,usedChips);
    const applied=apply(squad,bank,ft,action,season);
    squad=applied.squad;bank=applied.bank;ft=applied.ft;hits+=applied.hit?1:0;
    events.push({gw,action:action.type,chip:action.chip||null,hit:applied.hit});
