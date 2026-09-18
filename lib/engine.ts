@@ -2,75 +2,293 @@ export type Player=any;
 
 const clamp=(n:number,a=0,b=1)=>Math.max(a,Math.min(b,n));
 const FORMATIONS=[[3,4,3],[3,5,2],[4,4,2],[4,5,1],[4,3,3],[5,4,1],[5,3,2],[5,2,3]];
+const HALF=(gw:number)=>gw<=19?1:2;
+const CHIP_NAMES=["wildcard","freehit","bboost","3xc"];
 
-function fixtureScore(f:any,teamId:number){if(!f)return .5;const home=f.team_h===teamId;const diff=home?Number(f.team_h_difficulty||3):Number(f.team_a_difficulty||3);return clamp(1-(diff-1)/5,.08,.92)}
-function minutesProb(p:any){const s=p.status,c=p.chance_of_playing_next_round;if(s==="i"||s==="s"||s==="u")return 0;if(c!==null&&c!==undefined)return clamp(Number(c)/100);const starts=Number(p.starts||0),minutes=Number(p.minutes||0);if(!minutes&&!starts)return .25;if(starts)return clamp(.65+.07*starts,.65,.98);return .55}
+function fixtureScore(f:any,teamId:number){
+  if(!f)return .5;
+  const home=f.team_h===teamId,diff=Number(home?f.team_h_difficulty:f.team_a_difficulty)||3;
+  const venue=home?1.05:.95;
+  return clamp((1-(diff-3)*.18)*venue,.55,1.45);
+}
 function eventFixtures(team:number,fixtures:any[],gw:number){return fixtures.filter(f=>Number(f.event)===gw&&(f.team_h===team||f.team_a===team))}
-function weekScore(p:any,fixtures:any[],gw:number){const fs=eventFixtures(p.team,fixtures,gw);if(!fs.length)return 0;const fixture=fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;return Number((p.projected*(.55+.45*fixture)*Math.min(1.45,1+.35*(fs.length-1))).toFixed(2))}
-
-export function projectPlayer(p:Player,fixtures:any[],horizon=5,currentGw=0){
+function minutesProb(p:any){
+  const s=p.status,c=p.chance_of_playing_next_round;
+  if(s==="i"||s==="s"||s==="u")return 0;
+  if(c!==null&&c!==undefined)return clamp(Number(c)/100);
+  const starts=Number(p.starts||0),minutes=Number(p.minutes||0);
+  if(!minutes&&!starts)return .2;
+  const startRate=starts/Math.max(1,Number(p.appearances||starts)||starts);
+  return clamp(.62+.28*clamp(startRate)+.08*clamp(minutes/90/Math.max(1,starts),0,1),.35,.98);
+}
+function expectedMinutes(p:any){const s=minutesProb(p);return Math.round(s*82+(1-s)*12)}
+function rate(total:any,minutes:number,fallback=0){const m=Math.max(1,minutes);return Number(total||0)/(m/90)}
+function fixtureFactor(p:any,fixtures:any[],gw:number){
+  const fs=eventFixtures(p.team,fixtures,gw);if(!fs.length)return 0;
+  return fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;
+}
+function expectedFixturePoints(p:any,f:any,minutes:number){
+  const pos=Number(p.position),m=minutes/90,home=f.team_h===p.team;
+  const diff=Number(home?f.team_h_difficulty:f.team_a_difficulty)||3;
+  const ff=fixtureScore(f,p.team);
+  const xg90=rate(p.expected_goals,p.minutes,rate(p.goals_scored,p.minutes));
+  const xa90=rate(p.expected_assists,p.minutes,rate(p.assists,p.minutes));
+  const g90=Math.max(.01,xg90)*(.78+.22*ff);
+  const a90=Math.max(.01,xa90)*(.82+.18*ff);
+  const goals=g90*m,assists=a90*m;
+  const attack=pos===1?10:pos===2?6:pos===3?5:4;
+  const assist=3*assists;
+  const app=m>=.66?2:(m>.12?1:0);
+  const csBase=pos===1||pos===2?.32:.10;
+  const cs=clamp(csBase+(ff-1)*.23,.02,.72)*m*(pos===1||pos===2?4:1);
+  const saves=pos===1?rate(p.saves,p.minutes)*m/3:0;
+  const dcRate=rate(p.defensive_contribution,p.minutes);
+  const dcThreshold=pos===2?10:12;
+  const dc=pos===1?0:2*(1-Math.exp(-Math.max(0,dcRate*m)/(dcThreshold*.72)));
+  const bonusRate=rate(p.bonus,p.minutes);
+  const bonus=clamp(bonusRate*m*.22,0,2.1);
+  const goalsPts=goals*attack;
+  const concededPenalty=(pos===1||pos===2)?Math.max(0,(1.05-ff)*.8*m):0;
+  const appearanceRisk=(1-minutesProb(p))*.45;
+  const cards=.18*m;
+  return app+goalsPts+assist+cs+saves+dc+bonus-concededPenalty-appearanceRisk-cards;
+}
+export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
   const games=fixtures.filter(f=>f.event&&Number(f.event)>currentGw&&Number(f.event)<=horizon&&(f.team_h===p.team||f.team_a===p.team));
-  const fs=games.length?games.reduce((s,f)=>s+fixtureScore(f,p.team),0)/games.length:.5;
-  const form=Number(p.form||0),ppg=Number(p.points_per_game||0),minutes=Number(p.minutes||0);
-  const xgi=minutes?Number(p.expected_goal_involvements||0)/(minutes/90):0;
-  const mins=minutesProb(p);
-  const base=ppg*.38+form*.24+Math.min(2.5,xgi)*.9+fs*2.2;
-  return{id:p.id,name:p.web_name,team:p.team,position:p.element_type,price:Number(p.now_cost||0)/10,startProbability:Math.round(mins*100),fixtureScore:fs,projected:Number((base*mins).toFixed(2)),status:p.status,chanceOfPlaying:p.chance_of_playing_next_round,news:p.news||""};
+  const mins=expectedMinutes(p),ppg=Number(p.points_per_game||0),form=Number(p.form||0),totalMinutes=Number(p.minutes||0);
+  const xgi90=rate(p.expected_goal_involvements,totalMinutes,rate(Number(p.goals_scored||0)+Number(p.assists||0),totalMinutes));
+  const per90=Math.max(0.05,(ppg/Math.max(.35,mins/90))*.55+xgi90*.7+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.25);
+  const recent=Math.max(0,form)*.18+Math.max(0,ppg)*.32+per90*.35;
+  const availability=clamp(mins/90);
+  const fixtureAvg=games.length?games.reduce((s,f)=>s+fixtureScore(f,p.team),0)/games.length:1;
+  const next=games.length?games[0]:null;
+  const nextPts=next?Math.max(0,expectedFixturePoints(p,next,mins)):0;
+  const expected=games.reduce((s,f)=>{
+    const fs=eventFixtures(p.team,fixtures,Number(f.event));
+    const em=expectedMinutes(p);
+    return s+Math.max(0,expectedFixturePoints(p,f,em))*(fs.length>1?1.03:1);
+  },0);
+  const projection=clamp((nextPts*.58+recent*.42)*(.82+.18*fixtureAvg)*availability,0,20);
+  return{
+    id:p.id,name:p.web_name,team:p.team,position:p.element_type,price:Number(p.now_cost||0)/10,
+    startProbability:Math.round(availability*100),expectedMinutes:mins,fixtureScore:fixtureAvg,
+    projected:Number(projection.toFixed(2)),projectedHorizon:Number(expected.toFixed(2)),
+    xg90:Number(rate(p.expected_goals,p.minutes,rate(p.goals_scored,p.minutes)).toFixed(3)),
+    xa90:Number(rate(p.expected_assists,p.minutes,rate(p.assists,p.minutes)).toFixed(3)),
+    dc90:Number(rate(p.defensive_contribution,p.minutes).toFixed(2)),
+    ceiling:Number((projection+(xgi90*2.2)+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.4).toFixed(2)),
+    status:p.status,chanceOfPlaying:p.chance_of_playing_next_round,news:p.news||"",
+    raw:p
+  };
 }
 const posName=(p:number)=>({1:"Goalkeeper",2:"Defender",3:"Midfielder",4:"Forward"} as any)[p]||"Unknown";
-function buildXI(squad:any[],fixtures:any[],gw:number){const groups:any={1:[],2:[],3:[],4:[]};squad.forEach(x=>groups[x.player.position]?.push(x));Object.values(groups).forEach((a:any[])=>a.sort((x,y)=>weekScore(y.player,fixtures,gw)-weekScore(x.player,fixtures,gw)));let best:any[]=[];let bestScore=-Infinity;let formation="";for(const [d,m,f] of FORMATIONS){if(groups[1].length<1||groups[2].length<d||groups[3].length<m||groups[4].length<f)continue;const candidate=[...groups[1].slice(0,1),...groups[2].slice(0,d),...groups[3].slice(0,m),...groups[4].slice(0,f)];const score=candidate.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);if(score>bestScore){bestScore=score;best=candidate;formation="1-"+d+"-"+m+"-"+f}}return{xi:best,bestScore,formation}}
-function captainPlan(xi:any[],fixtures:any[],gw:number){const ranked=[...xi].map(x=>({...x,score:weekScore(x.player,fixtures,gw)})).sort((a,b)=>b.score-a.score);return{captain:ranked[0]?.player||null,vice:ranked[1]?.player||null,candidates:ranked.slice(0,5).map(x=>({name:x.player.name,id:x.player.id,score:x.score}))}}
+
+function weekScore(p:any,fixtures:any[],gw:number){
+  const fs=eventFixtures(p.team,fixtures,gw);if(!fs.length)return 0;
+  const scores=fs.map(f=>expectedFixturePoints(p.raw||p,f,expectedMinutes(p.raw||p)));
+  const sum=scores.reduce((a,b)=>a+b,0);
+  return Number(Math.max(0,sum).toFixed(2));
+}
+function buildXI(squad:any[],fixtures:any[],gw:number){
+  const groups:any={1:[],2:[],3:[],4:[]};squad.forEach(x=>groups[x.player.position]?.push(x));
+  Object.values(groups).forEach((a:any[])=>a.sort((x,y)=>weekScore(y.player,fixtures,gw)-weekScore(x.player,fixtures,gw)));
+  let best:any[]=[],bestScore=-Infinity,formation="";
+  for(const [d,m,f] of FORMATIONS){
+    if(groups[1].length<1||groups[2].length<d||groups[3].length<m||groups[4].length<f)continue;
+    const candidate=[...groups[1].slice(0,1),...groups[2].slice(0,d),...groups[3].slice(0,m),...groups[4].slice(0,f)];
+    const score=candidate.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
+    if(score>bestScore){bestScore=score;best=candidate;formation="1-"+d+"-"+m+"-"+f}
+  }
+  return{xi:best,bestScore,formation};
+}
+function captainPlan(xi:any[],fixtures:any[],gw:number){
+  const ranked=[...xi].map(x=>({...x,score:weekScore(x.player,fixtures,gw),ceiling:x.player.ceiling||0})).sort((a,b)=>(b.score+b.ceiling*.12)-(a.score+a.ceiling*.12));
+  return{captain:ranked[0]?.player||null,vice:ranked[1]?.player||null,candidates:ranked.slice(0,5).map(x=>({name:x.player.name,id:x.player.id,score:x.score,ceiling:x.ceiling}))};
+}
 function clubCount(squad:any[],team:number){return squad.filter(x=>x.player.team===team).length}
 function validSquad(squad:any[]){return squad.length===15&&squad.filter(x=>x.player.position===1).length===2&&squad.filter(x=>x.player.position===2).length===5&&squad.filter(x=>x.player.position===3).length===5&&squad.filter(x=>x.player.position===4).length===3&&[...new Set(squad.map(x=>x.player.team))].every(t=>clubCount(squad,Number(t))<=3)}
 function getFT(history:any){const c=history?.current?.at(-1);const v=c?.event_transfers_available??c?.event_transfers;return Math.max(0,Math.min(5,Number(v??1)))}
-function remainingChips(history:any){const used=new Set((history?.chips||[]).map((x:any)=>x.name));return["wildcard","freehit","bboost","3xc"].filter(x=>!used.has(x))}
-function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){const built=buildXI(squad,fixtures,gw),cap=captainPlan(built.xi,fixtures,gw);let points=built.xi.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);if(cap.captain)points+=weekScore(cap.captain,fixtures,gw)*(chip==="3xc"?2:1);if(chip==="bboost")points+=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id)).reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);return{points,xi:built.xi,formation:built.formation,cap}}
-function applyTransfer(squad:any[],t:any){return[...squad.filter(x=>x.player.id!==t.out.player.id),{element:t.in.id,player:t.in,sellPrice:t.in.price}]}
-function makeCandidates(squad:any[],pool:any[],bank:number){const out:any[]=[];for(const o of squad)for(const p of pool){if(squad.some(x=>x.player.id===p.id)||p.position!==o.player.position)continue;const sell=Number(o.sellPrice??o.player.price);if(p.price>sell+bank+.001)continue;if(clubCount(squad,p.team)>=3&&p.team!==o.player.team)continue;out.push({out:o,in:p,cost:Number((p.price-sell).toFixed(1)),delta:Number((p.projected-o.player.projected).toFixed(2))})}return out.sort((a,b)=>b.delta-a.delta).slice(0,40)}
-function transferIdeas(squad:any[],pool:any[],bank:number){return makeCandidates(squad,pool,bank).filter(x=>x.delta>0).slice(0,8).map(x=>({in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,delta:x.delta,price:x.in.price,position:posName(x.in.position),cost:x.cost}))}
-
-function chipMetrics(squad:any[],fixtures:any[],gw:number){const doubles:any={};fixtures.filter(f=>Number(f.event)===gw).forEach(f=>{doubles[f.team_h]=(doubles[f.team_h]||0)+1;doubles[f.team_a]=(doubles[f.team_a]||0)+1});const doublePlayers=squad.filter(x=>(doubles[x.player.team]||0)>1).length;const built=buildXI(squad,fixtures,gw),bench=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id));const cap=captainPlan(built.xi,fixtures,gw).captain;return{doublePlayers,benchScore:bench.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0),captainScore:cap?weekScore(cap,fixtures,gw):0}}
-function chipShouldPlay(chip:string,squad:any[],fixtures:any[],gw:number){const m=chipMetrics(squad,fixtures,gw);if(chip==="bboost")return m.doublePlayers>=5||m.benchScore>=12;if(chip==="3xc")return m.doublePlayers>0&&m.captainScore>=6;if(chip==="freehit")return m.doublePlayers===0&&squad.filter(x=>eventFixtures(x.player.team,fixtures,gw).length===0).length>=3;return makeCandidates(squad,squad.map(x=>x.player),0).length>=4}
-function chipReason(chip:string,squad:any[],fixtures:any[],gw:number){const m=chipMetrics(squad,fixtures,gw);if(chip==="bboost")return m.doublePlayers>=5||m.benchScore>=12?"Strong candidate: your bench has useful Gameweek coverage.":"Hold for a stronger bench or Double Gameweek.";if(chip==="3xc")return m.doublePlayers>0&&m.captainScore>=6?"Consider: your captain has a strong projection and a Double Gameweek.":"Hold: the current Gameweek does not meet the Triple Captain trigger.";if(chip==="freehit")return chipShouldPlay(chip,squad,fixtures,gw)?"Consider: the current squad has significant blank-fixture exposure.":"Hold for a Blank/Double Gameweek where a temporary squad can add substantial coverage.";return"Consider only when several positions need changing and the fixture run justifies a full rebuild."}
-
-function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number){let squad=initial.map(x=>({...x})),bank=Number((budget-squad.reduce((s,x)=>s+Number(x.sellPrice??x.player.price),0)).toFixed(1));for(let i=0;i<8;i++){const c=makeCandidates(squad,pool,bank).filter(x=>x.delta>0)[0];if(!c)break;squad=applyTransfer(squad,c);bank=Number((bank-c.cost).toFixed(1))}return{ squad,bank }}
-
+function chipUsed(history:any,chip:string,gw:number){
+  const half=HALF(gw);
+  return (history?.chips||[]).some((x:any)=>x.name===chip&&HALF(Number(x.event||gw))===half);
+}
+function remainingChips(history:any,gw:number){return CHIP_NAMES.filter(c=>!chipUsed(history,c,gw))}
+function sellPrice(p:any){
+  const current=Number(p.player?.price??p.price??0),purchase=Number(p.purchasePrice??p.purchase_price??current);
+  if(current<=purchase)return current;
+  return Number((purchase+Math.floor((current-purchase)*10/2)/10).toFixed(1));
+}
+function transferCost(o:any,inPlayer:any,bank:number){
+  const sell=sellPrice(o);return Number((inPlayer.price-sell).toFixed(1));
+}
+function applyTransfer(squad:any[],t:any){
+  return[...squad.filter(x=>x.player.id!==t.out.player.id),{
+    element:t.in.id,player:t.in,purchasePrice:t.in.price,sellPrice:t.in.price
+  }];
+}
+function multiWeekDelta(out:any,inP:any,fixtures:any[],startGw:number,horizon=3){
+  let d=0;for(let g=startGw+1;g<=startGw+horizon;g++)d+=weekScore(inP,fixtures,g)-weekScore(out.player,fixtures,g);
+  return d;
+}
+function makeCandidates(squad:any[],pool:any[],bank:number,startGw:number,horizon=3){
+  const out:any[]=[];
+  for(const o of squad)for(const p of pool){
+    if(squad.some(x=>x.player.id===p.id)||p.position!==o.player.position)continue;
+    const sell=sellPrice(o),cost=Number((p.price-sell).toFixed(1));
+    if(cost>bank+.001)continue;
+    if(clubCount(squad,p.team)>=3&&p.team!==o.player.team)continue;
+    const next=weekScore(p,[],startGw+1);
+    const delta=multiWeekDelta(o,p,fixturesSafe, startGw,horizon);
+    out.push({out:o,in:p,cost,delta:Number(delta.toFixed(2)),next});
+  }
+  return out.sort((a,b)=>b.delta-a.delta);
+}
+let fixturesSafe:any[]=[];
+function candidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=3){
+  fixturesSafe=fixtures;
+  return makeCandidates(squad,pool,bank,startGw,horizon);
+}
+function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number){
+  return candidates(squad,pool,bank,fixtures,gw,3).filter(x=>x.delta>0.35).slice(0,8).map(x=>({
+    in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,
+    delta:x.delta,nextGwGain:Number((weekScore(x.in,fixtures,gw+1)-weekScore(x.out.player,fixtures,gw+1)).toFixed(2)),
+    price:x.in.price,position:posName(x.in.position),cost:x.cost,
+    reason:(x.delta>=4?"Strong 3-GW upgrade":x.delta>=2?"Good 3-GW upgrade":"Marginal upgrade")+"; "+(x.cost>0?"costs £"+x.cost.toFixed(1)+"m":"releases £"+Math.abs(x.cost).toFixed(1)+"m")
+  }));
+}
+function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){
+  const built=buildXI(squad,fixtures,gw),cap=captainPlan(built.xi,fixtures,gw);
+  let points=built.xi.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
+  if(cap.captain)points+=weekScore(cap.captain,fixtures,gw);
+  if(chip==="3xc"&&cap.captain)points+=weekScore(cap.captain,fixtures,gw);
+  if(chip==="bboost")points+=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id)).reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
+  return{points,xi:built.xi,formation:built.formation,cap};
+}
+function chipMetrics(squad:any[],fixtures:any[],gw:number){
+  const doubles:any={};
+  fixtures.filter(f=>Number(f.event)===gw).forEach(f=>{doubles[f.team_h]=(doubles[f.team_h]||0)+1;doubles[f.team_a]=(doubles[f.team_a]||0)+1});
+  const doublePlayers=squad.filter(x=>(doubles[x.player.team]||0)>1).length;
+  const built=buildXI(squad,fixtures,gw),bench=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id));
+  const cap=captainPlan(built.xi,fixtures,gw).captain;
+  const base=scoreState(squad,fixtures,gw,null).points;
+  const tc=cap?weekScore(cap,fixtures,gw):0;
+  const bb=bench.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
+  return{doublePlayers,benchScore:bb,captainScore:tc,base,tcGain:tc,bbGain:bb};
+}
+function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number){
+  const byPos:any={1:[],2:[],3:[],4:[]};
+  pool.forEach(p=>byPos[p.position]?.push(p));
+  Object.values(byPos).forEach((a:any[])=>a.sort((x,y)=>weekScore(y,fixtures,gw+0)-weekScore(x,fixtures,gw+0)));
+  const limits:any={1:18,2:35,3:45,4:25}, beams:any=[{squad:[],cost:0,score:0,clubs:{}}];
+  for(const pos of [1,2,3,4]){
+    const need=pos===1?2:pos===2?5:pos===3?5:3,source=byPos[pos].slice(0,limits[pos]);
+    let states=beams;
+    for(let k=0;k<need;k++){
+      const next:any[]=[];
+      for(const st of states)for(const p of source){
+        if(st.squad.some(x=>x.id===p.id))continue;
+        const nc=Number((st.cost+p.price).toFixed(1));if(nc>budget+.001)continue;
+        const count=(st.clubs[p.team]||0)+1;if(count>3)continue;
+        next.push({squad:[...st.squad,p],cost:nc,score:st.score+weekScore(p,fixtures,gw),clubs:{...st.clubs,[p.team]:count}});
+      }
+      next.sort((a,b)=>b.score-a.score);states=next.slice(0,160);
+    }
+    beams=states;
+  }
+  const best=beams.filter(x=>x.squad.length===15).sort((a,b)=>b.score-a.score)[0];
+  return best?.squad||initial.map(x=>x.player);
+}
+function chipDecision(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,history:any){
+  const m=chipMetrics(squad,fixtures,gw);
+  if(chip==="3xc")return m.tcGain;
+  if(chip==="bboost")return m.bbGain;
+  const budget=Number((squad.reduce((s,x)=>s+sellPrice(x),0)).toFixed(1));
+  if(chip==="freehit"){
+    const best=bestTemporarySquad(squad,pool,fixtures,gw,budget);
+    return Math.max(0,scoreState(best.map(p=>({player:p})),fixtures,gw,null).points-m.base);
+  }
+  const rebuilt=bestTemporarySquad(squad,pool,fixtures,gw,budget);
+  return Math.max(0,scoreState(rebuilt.map(p=>({player:p})),fixtures,gw,null).points-m.base);
+}
+function chipThreshold(chip:string){return chip==="3xc"?1.0:chip==="bboost"?5.0:chip==="freehit"?3.0:4.0}
+function chipShouldPlay(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,history:any){
+  if(chipUsed(history,chip,gw))return false;
+  return chipDecision(chip,squad,pool,fixtures,gw,history)>=chipThreshold(chip);
+}
+function chipReason(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,history:any){
+  const gain=chipDecision(chip,squad,pool,fixtures,gw,history);
+  if(chipShouldPlay(chip,squad,pool,fixtures,gw,history))return "Model gain: +"+gain.toFixed(1)+" projected points versus not using the chip.";
+  return "Hold: estimated immediate gain is only +"+gain.toFixed(1)+" points; the optimiser will keep the chip for a stronger opportunity.";
+}
+function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number){
+  const best=bestTemporarySquad(initial,pool,fixtures,gw,budget);
+  const map=new Map(pool.map(p=>[p.id,p]));
+  const squad=best.map((p:any)=>({element:p.id,player:map.get(p.id)||p,purchasePrice:p.price,sellPrice:p.price}));
+  const cost=squad.reduce((s,x)=>s+x.player.price,0);
+  return{squad,bank:Number((budget-cost).toFixed(1))};
+}
 function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:number,bank:number,history:any){
-  const chips=remainingChips(history);
   let states:any[]=[{squad:initial,bank,ft:getFT(history),total:0,steps:[],usedChips:[] as string[]}];
-  for(let gw=startGw+1;gw<=startGw+6;gw++){
+  for(let gw=startGw+1;gw<=Math.min(38,startGw+6);gw++){
     const next:any[]=[];
     for(const st of states){
       const earned=Math.min(5,st.ft+1);
       const base=scoreState(st.squad,fixtures,gw,null);
-      next.push({...st,ft:earned,total:st.total+base.points,steps:[...st.steps,{gw,action:"Hold",chip:null,bank:st.bank,ft:earned,formation:base.formation,cap:base.cap}]});
-      const candidates=makeCandidates(st.squad,pool,st.bank);
-      for(const c of candidates.slice(0,12)){
-        const hit=st.ft>0?0:4;if(c.delta<=hit)continue;
-        const sq=applyTransfer(st.squad,c),newBank=Number((st.bank-c.cost).toFixed(1)),gain=scoreState(sq,fixtures,gw,null);
-        const newFt=Math.min(5,Math.max(0,st.ft-1)+1);
-        next.push({...st,squad:sq,bank:newBank,ft:newFt,total:st.total+gain.points-hit,steps:[...st.steps,{gw,action:c.in.name+" for "+c.out.player.name+(hit?" (-4 hit)":""),chip:null,bank:newBank,ft:newFt,formation:gain.formation,cap:gain.cap}]});
+      next.push({...st,ft:earned,total:st.total+base.points,steps:[...st.steps,{gw,action:"Hold",chip:null,bank:st.bank,ft:earned,formation:base.formation,cap:base.cap,projectedGain:0}]});
+      const cs=candidates(st.squad,pool,st.bank,fixtures,gw,3);
+      for(const c of cs.slice(0,18)){
+        const hit=st.ft>0?0:4;
+        if(c.delta<=hit+.15)continue;
+        const sq=applyTransfer(st.squad,c),nb=Number((st.bank-c.cost).toFixed(1)),gain=scoreState(sq,fixtures,gw,null),nf=Math.min(5,Math.max(0,st.ft-1)+1);
+        next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points-hit,steps:[...st.steps,{gw,action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points-hit).toFixed(2))}]});
       }
       if(st.ft>=2){
-        const first=candidates.slice(0,8);
-        for(const a of first)for(const b of makeCandidates(applyTransfer(st.squad,a),pool,Number((st.bank-a.cost).toFixed(1))).slice(0,8)){
-          const gain=scoreState(applyTransfer(applyTransfer(st.squad,a),b),fixtures,gw,null);if(gain.points<=base.points)continue;const nb=Number((st.bank-a.cost-b.cost).toFixed(1));if(nb<-0.001)continue;const nf=Math.min(5,st.ft-2+1);next.push({...st,squad:applyTransfer(applyTransfer(st.squad,a),b),bank:nb,ft:nf,total:st.total+gain.points,steps:[...st.steps,{gw,action:a.in.name+" for "+a.out.player.name+" + "+b.in.name+" for "+b.out.player.name,chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap}]})}
-      for(const chip of chips){
-        if(st.usedChips.includes(chip)||!chipShouldPlay(chip,st.squad,fixtures,gw))continue;
-        if(chip==="bboost"||chip==="3xc"){const gain=scoreState(st.squad,fixtures,gw,chip);next.push({...st,ft:earned,total:st.total+gain.points,steps:[...st.steps,{gw,action:"Hold",chip:chip==="bboost"?"Bench Boost":"Triple Captain",bank:st.bank,ft:earned,formation:gain.formation,cap:gain.cap}],usedChips:[...st.usedChips,chip]})}
-        if(chip==="wildcard"){const totalBudget=Number((st.bank+st.squad.reduce((s,x)=>s+Number(x.sellPrice??x.player.price),0)).toFixed(1));const rebuilt=improveSquad(st.squad,pool,fixtures,gw,totalBudget);const gain=scoreState(rebuilt.squad,fixtures,gw,null);if(gain.points>base.points){next.push({...st,squad:rebuilt.squad,bank:rebuilt.bank,ft:earned,total:st.total+gain.points,steps:[...st.steps,{gw,action:"Wildcard rebuild",chip:"Wildcard",bank:rebuilt.bank,ft:earned,formation:gain.formation,cap:gain.cap}],usedChips:[...st.usedChips,chip]})}}
-        if(chip==="freehit"){const totalBudget=Number((st.bank+st.squad.reduce((s,x)=>s+Number(x.sellPrice??x.player.price),0)).toFixed(1));const rebuilt=improveSquad(st.squad,pool,fixtures,gw,totalBudget);const gain=scoreState(rebuilt.squad,fixtures,gw,null);if(gain.points>base.points){next.push({...st,ft:earned,total:st.total+gain.points,steps:[...st.steps,{gw,action:"Free Hit squad",chip:"Free Hit",bank:st.bank,ft:earned,formation:gain.formation,cap:gain.cap}],usedChips:[...st.usedChips,chip]})}}
+        for(const a of cs.slice(0,10))for(const b of candidates(applyTransfer(st.squad,a),pool,Number((st.bank-a.cost).toFixed(1)),fixtures,gw,3).slice(0,10)){
+          const nb=Number((st.bank-a.cost-b.cost).toFixed(1));if(nb<-.001)continue;
+          const sq=applyTransfer(applyTransfer(st.squad,a),b),gain=scoreState(sq,fixtures,gw,null);
+          if(gain.points<=base.points)continue;
+          const nf=Math.min(5,st.ft-2+1);
+          next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points,steps:[...st.steps,{gw,action:a.in.name+" for "+a.out.player.name+" + "+b.in.name+" for "+b.out.player.name,chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points).toFixed(2))}]});
+        }
+      }
+      for(const chip of CHIP_NAMES){
+        if(st.usedChips.includes(chip)||chipUsed(history,chip,gw))continue;
+        if(!chipShouldPlay(chip,st.squad,pool,fixtures,gw,history))continue;
+        const gain=scoreState(st.squad,fixtures,gw,chip);
+        if(chip==="wildcard"){
+          const totalBudget=Number((st.bank+st.squad.reduce((s,x)=>s+sellPrice(x),0)).toFixed(1));
+          const rebuilt=improveSquad(st.squad,pool,fixtures,gw,totalBudget),rg=scoreState(rebuilt.squad,fixtures,gw,null);
+          if(rg.points>base.points){next.push({...st,squad:rebuilt.squad,bank:rebuilt.bank,ft:earned,total:st.total+rg.points,steps:[...st.steps,{gw,action:"Wildcard rebuild",chip:"Wildcard",bank:rebuilt.bank,ft:earned,formation:rg.formation,cap:rg.cap,projectedGain:Number((rg.points-base.points).toFixed(2))}],usedChips:[...st.usedChips,chip]})}
+        }else if(chip==="freehit"){
+          const totalBudget=Number((st.bank+st.squad.reduce((s,x)=>s+sellPrice(x),0)).toFixed(1));
+          const best=bestTemporarySquad(st.squad,pool,fixtures,gw,totalBudget),tmp=best.map((p:any)=>({player:p}));
+          const fg=scoreState(tmp,fixtures,gw,null);
+          if(fg.points>base.points){next.push({...st,ft:earned,total:st.total+fg.points,steps:[...st.steps,{gw,action:"Free Hit squad",chip:"Free Hit",bank:st.bank,ft:earned,formation:fg.formation,cap:fg.cap,projectedGain:Number((fg.points-base.points).toFixed(2))}],usedChips:[...st.usedChips,chip]})}
+        }else{
+          next.push({...st,ft:earned,total:st.total+gain.points,steps:[...st.steps,{gw,action:"Hold",chip:chip==="bboost"?"Bench Boost":"Triple Captain",bank:st.bank,ft:earned,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points).toFixed(2))}],usedChips:[...st.usedChips,chip]});
+        }
       }
     }
-    next.sort((a,b)=>b.total-a.total);states=next.slice(0,12);
+    next.sort((a,b)=>b.total-a.total);states=next.slice(0,24);
   }
   return states[0]?.steps||[];
 }
-
 export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null){
-  const horizon=gw+7,pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw)),byId=new Map(pool.map(p=>[p.id,p]));
-  const current=picks.map(x=>({...x,player:byId.get(x.element),sellPrice:Number(x.selling_price??x.now_cost??byId.get(x.element)?.price??0)/10})).filter(x=>x.player);
-  const built=buildXI(current,fixtures,gw),xi=built.xi,xiIds=new Set(xi.map(x=>x.player.id)),bench=current.filter(x=>!xiIds.has(x.player.id)).sort((a,b)=>b.player.projected-a.player.projected),starters=[...xi].sort((a,b)=>b.player.projected-a.player.projected);
-  const remaining=remainingChips(history),usedChips=history?.chips||[];
-  return{pool,current,starters,bench,transferIdeas:transferIdeas(current,pool,Number(bank||0)),bank:Number(bank||0),freeTransfers:getFT(history),currentGameweek:gw,rules:{squadSize:15,maxPlayersPerClub:3,formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",transferPositionLock:true,budgetConstraint:true,transferHit:4,maxFreeTransfers:5,sellingValueUsed:true},chips:{remaining,suggestions:remaining.map((c:string)=>({chip:c,reason:chipReason(c,current,fixtures,gw)})),used:usedChips},projectedGameweek:{points:Number(scoreState(current,fixtures,gw,null).points.toFixed(2)),captain:captainPlan(xi,fixtures,gw).captain,vice:captainPlan(xi,fixtures,gw).vice,formation:built.formation},decisionPlan:buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history)};
+  const horizon=Math.min(38,gw+7),pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw)),byId=new Map(pool.map(p=>[p.id,p]));
+  const current=picks.map(x=>{const player=byId.get(x.element);return{...x,player,purchasePrice:Number(x.purchase_price??x.purchasePrice??x.now_cost??player?.price??0)/10,sellPrice:Number(x.selling_price??x.now_cost??player?.price??0)/10}}).filter(x=>x.player);
+  const built=buildXI(current,fixtures,gw),xi=built.xi,xiIds=new Set(xi.map(x=>x.player.id));
+  const bench=current.filter(x=>!xiIds.has(x.player.id)).sort((a,b)=>weekScore(b.player,fixtures,gw)-weekScore(a.player,fixtures,gw));
+  const starters=[...xi].sort((a,b)=>weekScore(b.player,fixtures,gw)-weekScore(a.player,fixtures,gw));
+  const remaining=remainingChips(history,gw),usedChips=history?.chips||[];
+  const chips=remaining.map((c:string)=>({chip:c,reason:chipReason(c,current,pool,fixtures,gw,history)}));
+  return{
+    pool,current,starters,bench,
+    transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),
+    bank:Number(bank||0),freeTransfers:getFT(history),currentGameweek:gw,
+    rules:{squadSize:15,maxPlayersPerClub:3,formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",transferPositionLock:true,budgetConstraint:true,transferHit:4,maxFreeTransfers:5,sellingValueUsed:true},
+    model:{name:"FPL Decision Engine v0.8",method:"probabilistic per-fixture expected points + multi-GW beam search",horizon:6,transferHitPoints:4},
+    chips:{remaining,suggestions:chips,used:usedChips},
+    projectedGameweek:{points:Number(scoreState(current,fixtures,gw,null).points.toFixed(2)),captain:captainPlan(xi,fixtures,gw).captain,vice:captainPlan(xi,fixtures,gw).vice,formation:built.formation},
+    decisionPlan:buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history)
+  };
 }
