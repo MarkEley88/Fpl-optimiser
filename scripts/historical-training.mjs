@@ -123,9 +123,18 @@ function candidates(squad,pool,bank,ft,season){
  }
  return out;
 }
-function chooseAction(squad,pool,bank,ft,gw,season,preds){
+function chooseAction(squad,pool,bank,ft,gw,season,preds,usedChips){
  let best={type:"hold",value:0};
  const current=squad.reduce((a,p)=>a+(preds.get(p.id)||0),0);
+ // Chips are treated as explicit decisions, not hindsight overrides.
+ // Use only chips available under that season's rules and require a material
+ // immediate modelled gain. This keeps the walk-forward test causal.
+ const available=chipAvailability(season,gw,usedChips);
+ for(const chip of available){
+  const gain=chipGain(chip,squad,pool,preds,gw);
+  const threshold=chip==="tc"?1.5:chip==="bb"?4:chip==="fh"?3:4;
+  if(gain>=threshold && gain>best.value)best={type:"chip",chip,value:gain};
+ }
  for(const t of candidates(squad,pool,bank,ft,season)){
   const gain=t.p.model-t.o.model-t.hit;
   if(gain>best.value)best={type:"transfer",...t,value:gain};
@@ -185,7 +194,7 @@ async function runSeason(season){
  const gw1=d.byGw.get(1)||[];
  const initial=normalise(gw1.map(x=>features([x])));
  const pool0=initial.map(f=>({...f,model:predict(f)}));
- let squad=buildStart(pool0),bank=Number((100-squadPrice(squad)).toFixed(1)),ft=1,total=0,hits=0,events=[];
+ let squad=buildStart(pool0),bank=Number((100-squadPrice(squad)).toFixed(1)),ft=1,total=0,hits=0,events=[],usedChips=new Set();
  if(!legal(squad))throw Error("No legal starting squad "+season);
  for(let gw=1;gw<=38;gw++){
   const featureList=[];
@@ -197,16 +206,24 @@ async function runSeason(season){
   if(gw===1){
    for(const p of squad)preds.set(p.id,p.model);
   } else {
-   const action=chooseAction(squad,pool,bank,ft,gw,season,preds);
+   const action=chooseAction(squad,pool,bank,ft,gw,season,preds,usedChips);
    const applied=apply(squad,bank,ft,action,season);
    squad=applied.squad;bank=applied.bank;ft=applied.ft;hits+=applied.hit?1:0;
-   events.push({gw,action:action.type,hit:applied.hit});
+   events.push({gw,action:action.type,chip:action.chip||null,hit:applied.hit});
   }
   const xi=selectXI(squad,preds),cap=[...xi].sort((a,b)=>(preds.get(b.id)||0)-(preds.get(a.id)||0))[0];
   const predicted=xi.reduce((a,p)=>a+(preds.get(p.id)||0),0)+(preds.get(cap?.id)||0);
   const actualXI=xi.reduce((a,p)=>a+actual(p.id,gw,d.byId),0);
   const capActual=actual(cap?.id,gw,d.byId);
   let scored=actualXI+capActual;
+  if(action?.type==="chip"){
+    usedChips.add(action.chip);
+    if(action.chip==="tc") scored+=capActual;
+    if(action.chip==="bb"){
+      const benchPlayers=squad.filter(p=>!xi.some(x=>x.id===p.id));
+      scored+=benchPlayers.reduce((sum,p)=>sum+actual(p.id,gw,d.byId),0);
+    }
+  }
   total+=scored;
   // Online supervised update: every player with a historical appearance is a training example.
   // Error is measured only after the GW is complete.
