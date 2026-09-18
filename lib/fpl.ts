@@ -5,3 +5,4 @@ export const getTeam=(id:string)=>fpl("/entry/"+id+"/");
 export const getHistory=(id:string)=>fpl("/entry/"+id+"/history/");
 export const getPicks=(id:string,gw:number)=>fpl("/entry/"+id+"/event/"+gw+"/picks/");
 export const getFixtures=()=>fpl("/fixtures/");
+export const getElementSummary=(id:number|string)=>fpl("/element-summary/"+id+"/");
