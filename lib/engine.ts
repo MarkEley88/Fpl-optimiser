@@ -126,27 +126,27 @@ function applyTransfer(squad:any[],t:any){
     element:t.in.id,player:t.in,purchasePrice:t.in.price,sellPrice:t.in.price
   }];
 }
-function multiWeekDelta(out:any,inP:any,fixtures:any[],startGw:number,horizon=3){
+function multiWeekDelta(out:any,inP:any,fixtures:any[],startGw:number,horizon=5){
   let d=0;for(let g=startGw+1;g<=startGw+horizon;g++)d+=weekScore(inP,fixtures,g)-weekScore(out.player,fixtures,g);
   return d;
 }
-function makeCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=3){
+function makeCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=5){
   const out:any[]=[];
   for(const o of squad)for(const p of pool){
-    if(squad.some(x=>x.player.id===p.id)||p.position!==o.player.position)continue;
+    if(squad.some(x=>x.player.id===p.id))continue;
     const sell=sellPrice(o),cost=Number((p.price-sell).toFixed(1));
     if(cost>bank+.001)continue;
-    if(clubCount(squad,p.team)>=3&&p.team!==o.player.team)continue;
+    if(clubCount(squad,p.team)>=3&&p.team!==o.player.team)continue;\n    const trial=[...squad.filter(x=>x.player.id!==o.player.id),{element:p.id,player:p,purchasePrice:p.price,sellPrice:p.price}];\n    const counts=[1,2,3,4].map(pos=>trial.filter(x=>Number(x.player.position)===pos).length);\n    if(counts[0]!==2||counts[1]!==5||counts[2]!==5||counts[3]!==3)continue;
     const delta=multiWeekDelta(o,p,fixtures, startGw,horizon);
-    out.push({out:o,in:p,cost,delta:Number(delta.toFixed(2)),next});
+    out.push({out:o,in:p,cost,delta:Number(delta.toFixed(2))});
   }
   return out.sort((a,b)=>b.delta-a.delta);
 }
-function candidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=3){
+function candidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=5){
   return makeCandidates(squad,pool,bank,fixtures,startGw,horizon);
 }
 function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number){
-  return candidates(squad,pool,bank,fixtures,gw,3).filter(x=>x.delta>0.35).slice(0,8).map(x=>({
+  return candidates(squad,pool,bank,fixtures,gw,5).filter(x=>x.delta>0.35).slice(0,8).map(x=>({
     in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,
     delta:x.delta,nextGwGain:Number((weekScore(x.in,fixtures,gw+1)-weekScore(x.out.player,fixtures,gw+1)).toFixed(2)),
     price:x.in.price,position:posName(x.in.position),cost:x.cost,
@@ -240,7 +240,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         const hit=st.ft>0?0:4;
         if(c.delta<=hit+.15)continue;
         const sq=applyTransfer(st.squad,c),nb=Number((st.bank-c.cost).toFixed(1)),gain=scoreState(sq,fixtures,gw,null),nf=Math.min(5,Math.max(0,st.ft-1)+1);
-        next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points-hit,steps:[...st.steps,{gw,action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number(futureGain.toFixed(2))}]});
+        next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points-hit,steps:[...st.steps,{gw,action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points-hit).toFixed(2))}]});
       }
       if(st.ft>=2){
         for(const a of cs.slice(0,10))for(const b of candidates(applyTransfer(st.squad,a),pool,Number((st.bank-a.cost).toFixed(1)),fixtures,gw,3).slice(0,10)){
@@ -285,8 +285,8 @@ export function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:nu
     pool,current,starters,bench,
     transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),
     bank:Number(bank||0),freeTransfers:getFT(history),currentGameweek:gw,
-    rules:{squadSize:15,maxPlayersPerClub:3,formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",transferPositionLock:true,budgetConstraint:true,transferHit:4,maxFreeTransfers:5,sellingValueUsed:true},
-    model:{name:"FPL Decision Engine v0.8",method:"probabilistic per-fixture expected points + multi-GW beam search",horizon:6,transferHitPoints:4,principles:["Avoid hits unless projected future gain exceeds 4 points","Prefer information over early price chasing","Captain the highest expected-value option; use ceiling only as a tie-break","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
+    rules:{squadSize:15,maxPlayersPerClub:3,formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",transferPositionLock:false,budgetConstraint:true,transferHit:4,maxFreeTransfers:5,sellingValueUsed:true,freeHitCannotBeConsecutive:true,twoChipSets:true,oneChipPerGameweek:true,chipResetGameweek:20},
+    model:{name:"FPL Decision Engine v0.9",method:"probabilistic per-fixture expected points + 5-GW transfer search + chip opportunity-cost layer",horizon:6,transferHitPoints:4,principles:["Avoid hits unless projected 5-GW gain exceeds the 4-point cost","Preserve information value and avoid reactive price chasing","Captain the highest expected-value option; use ceiling only as a tie-break","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
     chips:{remaining,suggestions:chips,used:usedChips},
     projectedGameweek:{points:Number(scoreState(current,fixtures,gw,null).points.toFixed(2)),captain:captainPlan(xi,fixtures,gw).captain,vice:captainPlan(xi,fixtures,gw).vice,formation:built.formation},
     decisionPlan:buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history)
