@@ -12,11 +12,14 @@ function fixtureScore(f:any,teamId:number){
   const diff=Number(home?f.team_h_difficulty:f.team_a_difficulty)||3;
   const opponent=Number(home?f.team_a:f.team_h);
   const venue=home?1.05:.95;
-  // FPL difficulty is the primary signal; opponent rank strengthens it where available.
-  // Lower rank number = stronger opponent, so strong opposition reduces the score.
   const rank=Number(home?f.team_a_rank:f.team_h_rank)||0;
   const rankFactor=rank?clamp(1-(10-rank)*.012,.88,1.12):1;
-  return clamp((1-(diff-3)*.18)*venue*rankFactor,.45,1.5);
+  const teamForm=Number(home?f.team_h_form:f.team_a_form)||0;
+  const opponentForm=Number(home?f.team_a_form:f.team_h_form)||0;
+  const formFactor=teamForm||opponentForm
+    ? clamp(1+(teamForm-opponentForm)*.018,.88,1.12)
+    : 1;
+  return clamp((1-(diff-3)*.18)*venue*rankFactor*formFactor,.42,1.55);
 }
 function eventFixtures(team:number,fixtures:any[],gw:number){return fixtures.filter(f=>Number(f.event)===gw&&(f.team_h===team||f.team_a===team))}
 function minutesProb(p:any){
