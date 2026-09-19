@@ -170,6 +170,8 @@ function weekScore(p:any,fixtures:any[],gw:number){
   const modelBase=clamp(2+hs*.55,0,10);
   const currentBase=Math.max(0,sum);
   const modelAdjusted=modelBase*fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;
+  // IMPORTANT: no player price, transfer cost or budget value enters this
+  // score. This function measures expected FPL output only.
   const value=Number(Math.max(0,currentBase*.72+modelAdjusted*.28).toFixed(2));
   WEEK_SCORE_CACHE.set(cacheKey,value);
   return value;
@@ -243,6 +245,8 @@ function sellPrice(p:any){
   return Number((purchase+Math.floor((current-purchase)*10/2)/10).toFixed(1));
 }
 function transferCost(o:any,inPlayer:any,bank:number){
+  // Price is an eligibility constraint only. It is deliberately never part of
+  // player quality, transfer ranking, projected points or strategic value.
   const sell=sellPrice(o);return Number((inPlayer.price-sell).toFixed(1));
 }
 function applyTransfer(squad:any[],t:any){
@@ -267,23 +271,34 @@ function makeCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],startG
     const delta=multiWeekDelta(o,p,fixtures, startGw,horizon);
     out.push({out:o,in:p,cost,delta:Number(delta.toFixed(2))});
   }
+  // delta is a pure points differential. cost is retained only so callers can
+  // explain/enforce affordability; it is never used in this ordering.
   return out.sort((a,b)=>b.delta-a.delta);
 }
 function candidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=5){
   return makeCandidates(squad,pool,bank,fixtures,startGw,horizon);
 }
 function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number,ft:number){
-  // Rank transfers by cumulative future points while enforcing the squad,
-  // club, bank and free-transfer rules at the actual decision point.
+  // Recommendation value is points only. Price affects eligibility through
+  // makeCandidates(), but it must never increase or decrease a player's
+  // recommendation score once that player is affordable.
   const horizon=Math.min(7,38-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw-1,horizon);
   const rows=all.map(x=>{
     const hit=ft>0?0:4;
-    let future=0;
+    let futurePoints=0;
     for(let g=gw;g<=Math.min(38,gw+6);g++){
-      future+=weekScore(x.in,fixtures,g)-weekScore(x.out.player,fixtures,g);
+      futurePoints+=weekScore(x.in,fixtures,g)-weekScore(x.out.player,fixtures,g);
     }
-    return {...x,strategicDelta:Number((future-hit).toFixed(2)),hit};
+    // Only the transfer hit is a points cost. Transfer cash movement is not
+    // converted into value and therefore cannot make a cheaper player rank
+    // higher than a better player.
+    return {
+      ...x,
+      playerValueDelta:Number(futurePoints.toFixed(2)),
+      strategicDelta:Number((futurePoints-hit).toFixed(2)),
+      hit
+    };
   });
   return rows.sort((a,b)=>b.strategicDelta-a.strategicDelta);
 }
