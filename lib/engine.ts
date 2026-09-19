@@ -503,33 +503,10 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
 export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null){
   const horizon=Math.min(38,gw+6);
   let pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw));
-  // Enrich the current squad and the highest-value candidates with the live
-  // element-summary history so starting probability reflects recent selection,
-  // not just season-long starts. This runs on every optimisation.
-  const priority=pool.slice().sort((a,b)=>weekScore(b,fixtures,gw)-weekScore(a,fixtures,gw));
-  const ids=[...new Set([...picks.map((x:any)=>Number(x.element)),...priority.slice(0,80).map((x:any)=>Number(x.id))])].filter(Boolean).slice(0,95);
-  if(ids.length){
-    const summaries=await Promise.all(ids.map(async id=>{
-      try{
-        const r=await fetch("https://fantasy.premierleague.com/api/element-summary/"+id+"/",{cache:"no-store",headers:{"User-Agent":"FPL-Optimiser/0.3"}});
-        if(!r.ok)return null;
-        return{id,data:await r.json()};
-      }catch{return null;}
-    }));
-    const byId=new Map(summaries.filter(Boolean).map((x:any)=>[x.id,x.data]));
-    pool=pool.map(p=>{
-      const h=(byId.get(Number(p.id))?.history||[]).filter((x:any)=>Number(x.round||0)<gw).slice(-6);
-      if(!h.length)return p;
-      const weights=h.map((_:any,i:number)=>i+1),den=weights.reduce((a,b)=>a+b,0);
-      const recentStartRate=h.reduce((s:any,x:any,i:number)=>s+weights[i]*(Number(x.starts||0)>0?1:0),0)/den;
-      const recentMinutesRate=h.reduce((s:any,x:any,i:number)=>s+weights[i]*clamp(Number(x.minutes||0)/90),0)/den;
-      const started=h.filter((x:any)=>Number(x.starts||0)>0);
-      const bench=h.filter((x:any)=>Number(x.starts||0)<=0&&Number(x.minutes||0)>0);
-      const recentStartMinutes=started.length?started.reduce((s:number,x:any)=>s+Number(x.minutes||0),0)/started.length:78;
-      const recentBenchMinutes=bench.length?bench.reduce((s:number,x:any)=>s+Number(x.minutes||0),0)/bench.length:18;
-      return{...p,recentStartRate,recentMinutesRate,recentStartMinutes,recentBenchMinutes};
-    });
-  }
+  // Recent element-summary calls are intentionally not made at request time. The
+  // optimiser runs from the GitHub-refreshed live FPL cache so the Vercel
+  // function is not dependent on dozens of direct FPL API calls or their
+  // rate limits. Bootstrap data still supplies the live season metrics.
   const norm=normaliseModelPool(pool.map(x=>({...x,...x.modelFeatures})));
   const scored=norm.map(x=>({...x,historicalScore:historicalModelScore(x)}));
   const byId=new Map(scored.map(p=>[p.id,p]));
