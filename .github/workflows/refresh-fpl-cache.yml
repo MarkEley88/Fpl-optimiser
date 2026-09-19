@@ -3,6 +3,8 @@ name: Refresh FPL live cache
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "data/fpl-cache.json"
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
