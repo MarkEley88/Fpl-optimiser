@@ -166,6 +166,7 @@ const posName=(p:number)=>({1:"Goalkeeper",2:"Defender",3:"Midfielder",4:"Forwar
 
 const WEEK_SCORE_CACHE=new Map<string,number>();
 const SCORE_STATE_CACHE=new Map<string,any>();
+const SUBSTITUTION_CACHE=new Map<string,any>();
 
 function weekScore(p:any,fixtures:any[],gw:number){
   const cacheKey=String(p.id)+":"+String(gw);
@@ -377,18 +378,23 @@ function substitutionPlan(squad:any[],fixtures:any[],gw:number){
   return rows.sort((a,b)=>b.gain-a.gain).slice(0,5);
 }
 function plannedSubstitutions(squad:any[],fixtures:any[],gw:number){
+  const key=String(gw)+":"+squad.map((x:any)=>x.player.id).sort((a:number,b:number)=>a-b).join(",");
+  const cached=SUBSTITUTION_CACHE.get(key);
+  if(cached)return cached;
   const built=buildXI(squad,fixtures,gw);
   const xi=built.xi;
   const xiIds=new Set(xi.map((x:any)=>x.player.id));
   const bench=squad.filter((x:any)=>!xiIds.has(x.player.id))
     .sort((a:any,b:any)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
   const recommendations=substitutionPlan(squad,fixtures,gw);
-  return {
+  const result={
     formation:built.formation,
     startingXI:xi.map((x:any)=>x.player.name),
     bench:bench.map((x:any)=>x.player.name),
     recommendations
   };
+  SUBSTITUTION_CACHE.set(key,result);
+  return result;
 }
 function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number){
   const all=candidates(squad,pool,bank,fixtures,gw,7);
