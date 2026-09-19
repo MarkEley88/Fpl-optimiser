@@ -60,35 +60,50 @@ function normaliseModelPool(rows:any[]){
 function historicalModelScore(p:any){
   const f=p.modelFeatures||{};
   const w=HISTORICAL_MODEL.weights;
+  const ids=(HISTORICAL_MODEL as any).historicalPlayerIds;
+  const historicalAvailable=!Array.isArray(ids)||ids.includes(Number(p.id));
+  // Missing historical player data is neutral: no boost and no penalty.
+  if(!historicalAvailable)return 0;
   return Number(w.bias||0)+Object.entries(w).filter(([k])=>k!=="bias").reduce((s,[k,v])=>s+Number(v)*Number(f[k]||0),0);
 }
+function rawPlayer(p:any){
+  return p.raw||p;
+}
 function availabilityProb(p:any){
-  const s=p.status,c=p.chance_of_playing_next_round;
+  const raw=rawPlayer(p);
+  const s=p.status??raw.status;
+  const c=p.chance_of_playing_next_round??p.chanceOfPlaying??raw.chance_of_playing_next_round;
   if(s==="i"||s==="s"||s==="u")return 0;
-  if(c!==null&&c!==undefined)return clamp(Number(c)/100);
+  if(c!==null&&c!==undefined&&c!=="")return clamp(Number(c)/100);
+  if(s==="d")return .25;
   return 1;
 }
 function startProbability(p:any){
-  if(!availabilityProb(p))return 0;
-  if(p.recentStartRate!==undefined){
-    const recent=clamp(Number(p.recentStartRate||0));
-    const season=Number(p.appearances||0)>0?clamp(Number(p.starts||0)/Number(p.appearances)):recent;
-    const recentMinutes=clamp(Number(p.recentMinutesRate||0));
-    return clamp(availabilityProb(p)*(.62*recent+.28*season+.10*recentMinutes),.02,.98);
+  const raw=rawPlayer(p);
+  const availability=availabilityProb(p);
+  if(!availability)return 0;
+  const recentRate=p.recentStartRate??raw.recentStartRate;
+  const recentMinutesRate=p.recentMinutesRate??raw.recentMinutesRate;
+  const recent=recentRate!==undefined?clamp(Number(recentRate||0)):undefined;
+  const appearances=Number(p.appearances??raw.appearances??0);
+  const starts=Number(p.starts??raw.starts??0);
+  const minutes=Number(p.minutes??raw.minutes??0);
+  if(recent!==undefined){
+    const season=appearances>0?clamp(starts/appearances):recent;
+    const minuteRate=recentMinutesRate!==undefined?clamp(Number(recentMinutesRate||0)):clamp(minutes/(90*Math.max(1,appearances)));
+    return clamp(availability*(.62*recent+.28*season+.10*minuteRate),.02,.98);
   }
-  const starts=Number(p.starts||0),apps=Number(p.appearances||0);
-  if(!apps&&!starts)return .2*availabilityProb(p);
-  // A player with appearances but no starts is normally a bench option.
-  // Do not let a tiny early-season sample manufacture a high start probability.
-  if(starts<=0)return clamp(availabilityProb(p)*.12,.02,.25);
-  const season=starts/Math.max(1,apps||starts);
-  const minutesRate=Number(p.minutes||0)/(90*Math.max(1,apps||starts));
-  return clamp(availabilityProb(p)*(.62*clamp(season)+.28*clamp(minutesRate)+.10),.02,.98);
+  if(!appearances&&!starts)return .2*availability;
+  if(starts<=0)return clamp(availability*.12,.02,.25);
+  const season=starts/Math.max(1,appearances||starts);
+  const minutesRate=minutes/(90*Math.max(1,appearances||starts));
+  return clamp(availability*(.62*clamp(season)+.28*clamp(minutesRate)+.10),.02,.98);
 }
 function expectedMinutes(p:any){
+  const raw=rawPlayer(p);
   const start=startProbability(p),availability=availabilityProb(p);
-  const startMinutes=Number(p.recentStartMinutes||0)||78;
-  const benchMinutes=Number(p.recentBenchMinutes||0)||18;
+  const startMinutes=Number(p.recentStartMinutes??raw.recentStartMinutes??0)||78;
+  const benchMinutes=Number(p.recentBenchMinutes??raw.recentBenchMinutes??0)||18;
   const benchAppear=availability*(1-start)*.72;
   return Math.round(start*startMinutes+benchAppear*benchMinutes);
 }
