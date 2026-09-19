@@ -304,13 +304,15 @@ function squadHorizonDelta(squad:any[],candidate:any[],fixtures:any[],gw:number,
   return Number(delta.toFixed(2));
 }
 function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number,ft:number){
-  // Every legal single-transfer candidate is now scored at squad level.
-  // Price only gates affordability; it never contributes to player quality.
-  // This prevents the cheap-player shortlist from accidentally deciding the
-  // strategy before the resulting XI/captain/horizon has been evaluated.
+  // Generate the full legal candidate pool first. To keep the live 7-GW planner
+  // within Vercel execution limits, use the cheap player-level horizon delta to
+  // identify a broad shortlist, then perform the expensive exact XI/captain
+  // squad-level evaluation only on that shortlist. Price remains affordability
+  // only; it is never part of footballing value.
   const horizon=Math.min(7,39-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw-1,horizon);
-  const rows=all.map(x=>{
+  const preselect=all.slice(0,80);
+  const rows=preselect.map(x=>{
     const hit=ft>0?0:4;
     const result=applyTransfer(squad,x);
     const playerValueDelta=squadHorizonDelta(squad,result,fixtures,gw,horizon);
@@ -517,10 +519,10 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   // - Future transfers are represented by carrying multiple complete states forward;
   //   we never treat a player's price as part of his footballing value.
   const endGw=Math.min(38,startGw+6);
-  const BEAM=64;
-  const SINGLE_KEEP=60;
-  const FIRST_PAIR_KEEP=28;
-  const SECOND_PAIR_KEEP=24;
+  const BEAM=16;
+  const SINGLE_KEEP=24;
+  const FIRST_PAIR_KEEP=10;
+  const SECOND_PAIR_KEEP=10;
 
   type State={
     squad:any[],bank:number,ft:number,total:number,steps:any[],usedChips:string[]
@@ -596,7 +598,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       // individually affordable; only the combined net cost must be affordable.
       // This directly tests "downgrade here -> upgrade there" strategies.
       const firstAll=makeCandidates(st.squad,pool,Infinity,fixtures,gw,7);
-      const firstScored=firstAll.map((x:any)=>{
+      const firstPreselect=[...firstAll.slice(0,40),...firstAll.filter((x:any)=>x.cost<0).slice(0,24)];
+      const firstScored=firstPreselect.map((x:any)=>{
         const sq=applyTransfer(st.squad,x);
         const delta=squadHorizonDelta(st.squad,sq,fixtures,gw,Math.min(7,endGw-gw+1));
         return {...x,combinedDelta:delta};
@@ -612,7 +615,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       for(const a of firstPool){
         const afterA=applyTransfer(st.squad,a);
         const secondAll=makeCandidates(afterA,pool,Infinity,fixtures,gw,2);
-        const secondScored=secondAll.map((x:any)=>{
+        const secondPreselect=[...secondAll.slice(0,30),...secondAll.filter((x:any)=>x.cost<0).slice(0,16)];
+        const secondScored=secondPreselect.map((x:any)=>{
           const sq=applyTransfer(afterA,x);
           const delta=squadHorizonDelta(st.squad,sq,fixtures,gw,Math.min(7,endGw-gw+1));
           return {...x,combinedDelta:delta};
