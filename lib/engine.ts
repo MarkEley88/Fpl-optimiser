@@ -324,6 +324,16 @@ function bestFutureCaptain(squad:any[],fixtures:any[],gw:number){
   }
   return rows.sort((a,b)=>b.score-a.score)[0]||null;
 }
+function bestFutureBenchBoost(squad:any[],fixtures:any[],gw:number){
+  const end=gw<=19?19:38; const rows:any[]=[];
+  for(let g=gw+1;g<=end;g++){
+    const built=buildXI(squad,fixtures,g);
+    const bench=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id));
+    const score=bench.reduce((s,x)=>s+weekScore(x.player,fixtures,g),0);
+    rows.push({gw:g,score:Number(score.toFixed(2))});
+  }
+  return rows.sort((a,b)=>b.score-a.score)[0]||null;
+}
 function chipMetrics(squad:any[],fixtures:any[],gw:number){
   const doubles:any={};
   fixtures.filter(f=>Number(f.event)===gw).forEach(f=>{doubles[f.team_h]=(doubles[f.team_h]||0)+1;doubles[f.team_a]=(doubles[f.team_a]||0)+1});
@@ -334,9 +344,11 @@ function chipMetrics(squad:any[],fixtures:any[],gw:number){
   const tc=cap?weekScore(cap,fixtures,gw):0;
   const bb=bench.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
   const futureTC=bestFutureCaptain(squad,fixtures,gw);
+  const futureBB=bestFutureBenchBoost(squad,fixtures,gw);
   const currentDouble=cap?eventFixtures(cap.team,fixtures,gw).length>1:false;
   const tcOpportunity=Number((tc-(futureTC?.score||0)).toFixed(2));
-  return{doublePlayers,benchScore:bb,captainScore:tc,base,tcGain:tc,bbGain:bb,currentDouble,futureTC,tcOpportunity};
+  const bbOpportunity=Number((bb-(futureBB?.score||0)).toFixed(2));
+  return{doublePlayers,benchScore:bb,captainScore:tc,base,tcGain:tc,bbGain:bb,currentDouble,futureTC,futureBB,tcOpportunity,bbOpportunity};
 }
 function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number){
   const byPos:any={1:[],2:[],3:[],4:[]};
@@ -386,10 +398,17 @@ function chipShouldPlay(chip:string,squad:any[],pool:any[],fixtures:any[],gw:num
 }
 function chipReason(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,history:any){
   const gain=chipDecision(chip,squad,pool,fixtures,gw,history);
-  const tc=chip==="3xc"?chipMetrics(squad,fixtures,gw):null;
-  if(chipShouldPlay(chip,squad,pool,fixtures,gw,history))return "Triple Captain: "+(tc?.currentDouble?"Double Gameweek":"strong opportunity")+". Expected captain score "+gain.toFixed(1)+"; best remaining benchmark "+(tc?.futureTC?.score??0).toFixed(1)+".";
-  if(chip==="3xc"&&tc?.futureTC)return "Hold: expected captain score "+gain.toFixed(1)+"; best remaining projected opportunity is "+tc.futureTC.name+" in GW"+tc.futureTC.gw+" at "+tc.futureTC.score.toFixed(1)+" points." ;
-  return "Hold: estimated immediate gain is only +"+gain.toFixed(1)+" points; the optimiser will keep the chip for a stronger opportunity.";
+  const m=chipMetrics(squad,fixtures,gw);
+  if(chip==="3xc"){
+    if(chipShouldPlay(chip,squad,pool,fixtures,gw,history))return "Use: "+(m.currentDouble?"Double Gameweek":"strong captain opportunity")+". Expected captain score "+m.captainScore.toFixed(1)+"; best remaining benchmark "+(m.futureTC?.score??0).toFixed(1)+".";
+    if(m.futureTC)return "Hold: expected captain score "+m.captainScore.toFixed(1)+"; best remaining projected opportunity is "+m.futureTC.name+" in GW"+m.futureTC.gw+" at "+m.futureTC.score.toFixed(1)+" points.";
+  }
+  if(chip==="bboost"){
+    if(chipShouldPlay(chip,squad,pool,fixtures,gw,history))return "Use: expected incremental Bench Boost gain "+m.bbGain.toFixed(1)+" points; best remaining benchmark "+(m.futureBB?.score??0).toFixed(1)+".";
+    if(m.futureBB)return "Hold: expected Bench Boost gain is "+m.bbGain.toFixed(1)+" points; best remaining projected bench is "+m.futureBB.score.toFixed(1)+" in GW"+m.futureBB.gw+".";
+  }
+  if(chip==="freehit"||chip==="wildcard")return chipShouldPlay(chip,squad,pool,fixtures,gw,history)?"Use: projected immediate gain +"+gain.toFixed(1)+" points.":"Hold: estimated immediate gain is only +"+gain.toFixed(1)+" points; keep the chip for a stronger opportunity.";
+  return "Hold: estimated immediate gain is only +"+gain.toFixed(1)+" points; keep the chip for a stronger opportunity.";
 }
 function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number){
   const best=bestTemporarySquad(initial,pool,fixtures,gw,budget);
