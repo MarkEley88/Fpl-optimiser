@@ -512,7 +512,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         // transfers do not need to be individually affordable in sequence:
         // a downgrade can fund an upgrade elsewhere in the same GW.
         const twoHit=Math.max(0,2-st.ft)*4;
-        const firstRows=strategicCandidates(st.squad,pool,st.bank,fixtures,gw,st.ft);
+        const firstBase=candidates(st.squad,pool,Infinity,fixtures,gw-1,7);
+        const firstRows=firstBase.map(x=>({...x,hit:st.ft>0?0:4,playerValueDelta:x.delta,strategicDelta:x.delta-(st.ft>0?0:4)})).sort((a,b)=>b.strategicDelta-a.strategicDelta);
         const firstFunding=[...firstRows].filter(x=>x.cost<0).sort((a,b)=>a.cost-b.cost).slice(0,16);
         const firstPool=[...new Map([...firstRows.slice(0,24),...firstFunding].map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
         const pairStates:any[]=[];
@@ -538,7 +539,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           const future=lookaheadValue(p.sq,gw+1);
           const nf=Math.min(5,Math.max(0,st.ft-2)+1);
           const total=st.total+p.gain.points-twoHit;
-          next.push({...st,squad:p.sq,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,total,rank:total-twoHit+future,steps:[...st.steps,{gw,action:p.a.in.name+" for "+p.a.out.player.name+" + "+p.b.in.name+" for "+p.b.out.player.name+(twoHit?" (-"+twoHit+" points)":""),chip:null,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,formation:p.gain.formation,cap:p.gain.cap,projectedGain:Number((p.gain.points-base.points-twoHit).toFixed(2))}]});
+          next.push({...st,squad:p.sq,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,total,rank:total+future,steps:[...st.steps,{gw,action:p.a.in.name+" for "+p.a.out.player.name+" + "+p.b.in.name+" for "+p.b.out.player.name+(twoHit?" (-"+twoHit+" points)":""),chip:null,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,formation:p.gain.formation,cap:p.gain.cap,projectedGain:Number((p.gain.points-base.points-twoHit).toFixed(2))}]});
         }
       }
       for(const chip of CHIP_NAMES){
