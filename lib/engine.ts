@@ -723,7 +723,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     // Rank by cumulative actual points plus the exact continuation value of the
     // current squad. Keep a broad frontier so saving a transfer or funding a
     // later upgrade cannot be pruned just because it is weaker this week.
-    next.sort((a:any,b:any)=>stateRank(b,endGw+1)-stateRank(a,endGw+1));
+    next.sort((a:any,b:any)=>stateRank(b,gw+1)-stateRank(a,gw+1));
     states=next.slice(0,BEAM);
   }
 
