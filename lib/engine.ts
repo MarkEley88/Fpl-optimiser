@@ -101,7 +101,7 @@ function expectedFixturePoints(p:any,f:any,minutes:number){
   const g90=Math.max(.01,xg90)*(.78+.22*ff);
   const a90=Math.max(.01,xa90)*(.82+.18*ff);
   const goals=g90*m,assists=a90*m;
-  const attack=pos===1?10:pos===2?6:pos===3?5:4;
+  const attack=pos===1?4:pos===2?6:pos===3?5:4;
   const assist=3*assists;
   const app=m>=.66?2:(m>.12?1:0);
   const csBase=pos===1||pos===2?.32:.10;
@@ -172,7 +172,7 @@ function weekScore(p:any,fixtures:any[],gw:number){
   const modelAdjusted=modelBase*fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;
   // IMPORTANT: no player price, transfer cost or budget value enters this
   // score. This function measures expected FPL output only.
-  const value=Number(Math.max(0,currentBase*.72+modelAdjusted*.28).toFixed(2));
+  const value=Number(Math.max(0,currentBase*.88+modelAdjusted*.12).toFixed(2));
   WEEK_SCORE_CACHE.set(cacheKey,value);
   return value;
 }
@@ -534,7 +534,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         }
         // Score the combined squads, then spend the expensive 7-GW lookahead
         // only on the strongest combined outcomes.
-        pairStates.sort((x,y)=>y.gain.points-x.gain.points);
+        const baseFuture=lookaheadValue(st.squad,gw+1);\n        pairStates.sort((x,y)=>{\n          const xv=x.gain.points+lookaheadValue(x.sq,gw+1)-baseFuture-twoHit;\n          const yv=y.gain.points+lookaheadValue(y.sq,gw+1)-baseFuture-twoHit;\n          return yv-xv;\n        });
         for(const p of pairStates.slice(0,6)){
           const future=lookaheadValue(p.sq,gw+1);
           const nf=Math.min(5,Math.max(0,st.ft-2)+1);
