@@ -383,6 +383,23 @@ function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,bu
   pool.forEach(p=>byPos[p.position]?.push(p));
   const playerHorizonScore=(p:any)=>{let s=0;for(let g=gw;g<=Math.min(38,gw+lookahead-1);g++)s+=weekScore(p,fixtures,g);return s};
   Object.values(byPos).forEach((a:any[])=>a.sort((x,y)=>playerHorizonScore(y)-playerHorizonScore(x)));
+  const squadHorizonScore=(players:any[])=>{
+    let total=0;
+    for(let g=gw;g<=Math.min(38,gw+lookahead-1);g++){
+      const groups:any={1:[],2:[],3:[],4:[]};
+      players.forEach(p=>groups[p.position]?.push(p));
+      Object.values(groups).forEach((a:any[])=>a.sort((x,y)=>selectionScore(y,fixtures,g)-selectionScore(x,fixtures,g)));
+      let best=-Infinity;
+      for(const [d,m,f] of FORMATIONS){
+        if(groups[1].length<1||groups[2].length<d||groups[3].length<m||groups[4].length<f)continue;
+        const xi=[...groups[1].slice(0,1),...groups[2].slice(0,d),...groups[3].slice(0,m),...groups[4].slice(0,f)];
+        const score=xi.reduce((s,p)=>s+weekScore(p,fixtures,g),0);
+        if(score>best)best=score;
+      }
+      if(best>-Infinity)total+=best;
+    }
+    return total;
+  };
   const limits:any={1:18,2:35,3:45,4:25}; let beams:any=[{squad:[],cost:0,score:0,clubs:{}}];
   for(const pos of [1,2,3,4]){
     const need=pos===1?2:pos===2?5:pos===3?5:3,source=byPos[pos].slice(0,limits[pos]);
