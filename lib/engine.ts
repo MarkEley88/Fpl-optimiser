@@ -411,13 +411,17 @@ function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,bu
         const nc=Number((st.cost+p.price).toFixed(1));if(nc>budget+.001)continue;
         const count=(st.clubs[p.team]||0)+1;if(count>3)continue;
         const nextSquad=[...st.squad,p];
-        next.push({squad:nextSquad,cost:nc,score:squadHorizonScore(nextSquad),clubs:{...st.clubs,[p.team]:count}});
+        // Keep beam construction cheap: partial squads use player-level
+        // projections for pruning. Once a 15-player squad is complete, the
+        // final ranking below uses the actual legal XI only (11 scorers).
+        next.push({squad:nextSquad,cost:nc,score:st.score+playerHorizonScore(p),clubs:{...st.clubs,[p.team]:count}});
       }
       next.sort((a,b)=>b.score-a.score);states=next.slice(0,160);
     }
     beams=states;
   }
-  const best=beams.filter(x=>x.squad.length===15).sort((a,b)=>b.score-a.score)[0];
+  const complete=beams.filter(x=>x.squad.length===15);
+  const best=complete.sort((a,b)=>squadHorizonScore(b.squad)-squadHorizonScore(a.squad))[0];
   return best?.squad||initial.map(x=>x.player);
 }
 function chipDecision(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,history:any){
