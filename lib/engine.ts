@@ -279,25 +279,32 @@ function makeCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],startG
 function candidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=5){
   return makeCandidates(squad,pool,bank,fixtures,startGw,horizon);
 }
+function squadHorizonDelta(squad:any[],candidate:any[],fixtures:any[],gw:number,horizon=7){
+  let delta=0;
+  const end=Math.min(38,gw+horizon-1);
+  for(let g=gw;g<=end;g++){
+    delta+=scoreState(candidate,fixtures,g,null).points-scoreState(squad,fixtures,g,null).points;
+  }
+  return Number(delta.toFixed(2));
+}
 function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number,ft:number){
-  // Recommendation value is points only. Price affects eligibility through
-  // makeCandidates(), but it must never increase or decrease a player's
-  // recommendation score once that player is affordable.
-  const horizon=Math.min(7,38-gw);
+  // First use the player-only differential to cheaply identify plausible
+  // candidates from the full legal pool. Then re-rank those candidates using
+  // the actual resulting XI and captain score across the 7-GW horizon.
+  // This is critical for premium players: selling a player who is also the
+  // likely captain must pay for the lost captaincy points.
+  const horizon=Math.min(7,39-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw-1,horizon);
-  const rows=all.map(x=>{
+  const shortlist=[...all.slice(0,80),...all.filter(x=>x.cost<0).slice(0,20)];
+  const unique=[...new Map(shortlist.map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
+  const rows=unique.map(x=>{
     const hit=ft>0?0:4;
-    let futurePoints=0;
-    for(let g=gw;g<=Math.min(38,gw+6);g++){
-      futurePoints+=weekScore(x.in,fixtures,g)-weekScore(x.out.player,fixtures,g);
-    }
-    // Only the transfer hit is a points cost. Transfer cash movement is not
-    // converted into value and therefore cannot make a cheaper player rank
-    // higher than a better player.
+    const result=applyTransfer(squad,x);
+    const playerValueDelta=squadHorizonDelta(squad,result,fixtures,gw,7);
     return {
       ...x,
-      playerValueDelta:Number(futurePoints.toFixed(2)),
-      strategicDelta:Number((futurePoints-hit).toFixed(2)),
+      playerValueDelta,
+      strategicDelta:Number((playerValueDelta-hit).toFixed(2)),
       hit
     };
   });
@@ -323,12 +330,22 @@ function substitutionPlan(squad:any[],fixtures:any[],gw:number){
   return rows.sort((a,b)=>b.gain-a.gain).slice(0,5);
 }
 function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number){
-  return candidates(squad,pool,bank,fixtures,gw,7).filter(x=>x.delta>0.35).slice(0,8).map(x=>({
-    in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,
-    delta:x.delta,nextGwGain:Number((weekScore(x.in,fixtures,gw+1)-weekScore(x.out.player,fixtures,gw+1)).toFixed(2)),
-    price:x.in.price,position:posName(x.in.position),cost:x.cost,
-    reason:(x.delta>=6?"Strong 7-GW upgrade":x.delta>=3?"Good 7-GW upgrade":"Marginal 7-GW upgrade")+"; "+(x.cost>0?"costs £"+x.cost.toFixed(1)+"m":"releases £"+Math.abs(x.cost).toFixed(1)+"m")
-  }));
+  const all=candidates(squad,pool,bank,fixtures,gw,7);
+  const shortlist=[...all.slice(0,80),...all.filter(x=>x.cost<0).slice(0,20)];
+  const unique=[...new Map(shortlist.map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
+  const baseValue=scoreState(squad,fixtures,gw,null).points;
+  const rows=unique.map(x=>{
+    const result=applyTransfer(squad,x);
+    const horizonDelta=squadHorizonDelta(squad,result,fixtures,gw,7);
+    const nextGwGain=scoreState(result,fixtures,gw,null).points-baseValue;
+    return {
+      in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,
+      delta:horizonDelta,nextGwGain:Number(nextGwGain.toFixed(2)),
+      price:x.in.price,position:posName(x.in.position),cost:x.cost,
+      reason:(horizonDelta>=6?"Strong 7-GW upgrade":horizonDelta>=3?"Good 7-GW upgrade":horizonDelta>0.35?"Marginal 7-GW upgrade":"No clear 7-GW upgrade")+"; "+(x.cost>0?"costs £"+x.cost.toFixed(1)+"m":"releases £"+Math.abs(x.cost).toFixed(1)+"m")
+    };
+  });
+  return rows.filter(x=>x.delta>0.35).sort((a,b)=>b.delta-a.delta).slice(0,8);
 }
 function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){
   const key=String(gw)+":"+String(chip||"none")+":"+squad.map(x=>x.player.id).sort((a,b)=>a-b).join(",");
