@@ -1,27 +1,35 @@
-const BASE="https://fantasy.premierleague.com/api";
+const CACHE_URL="https://raw.githubusercontent.com/MarkEley88/Fpl-optimiser/main/data/fpl-cache.json";
 
-const headers={
-  "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-  "Accept":"application/json, text/plain, */*",
-  "Accept-Language":"en-GB,en;q=0.9,en-US;q=0.8",
-  "Referer":"https://fantasy.premierleague.com/",
-  "Origin":"https://fantasy.premierleague.com"
-};
+type Cache=Record<string,any>;
+
+let cached:Cache|null=null;
+let cachedAt=0;
+
+async function getCache():Promise<Cache>{
+  const now=Date.now();
+  if(cached && now-cachedAt<15000)return cached;
+  const r=await fetch(CACHE_URL+"?t="+now,{cache:"no-store"});
+  if(!r.ok)throw Error("FPL cache "+r.status);
+  const data=await r.json();
+  if(!data.bootstrap || !data.fixtures || !data.team || !data.history || !data.picks){
+    throw Error("FPL live cache unavailable");
+  }
+  cached=data;
+  cachedAt=now;
+  return data;
+}
 
 export async function fpl(path:string){
-  let lastStatus=0;
-  for(let attempt=0;attempt<3;attempt++){
-    try{
-      const r=await fetch(BASE+path,{cache:"no-store",headers,redirect:"follow"});
-      if(r.ok)return r.json();
-      lastStatus=r.status;
-      if(r.status!==403&&r.status!==429)break;
-    }catch{
-      if(attempt===2)throw Error("FPL unavailable");
-    }
-    if(attempt<2)await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)));
-  }
-  throw Error("FPL "+lastStatus);
+  const c=await getCache();
+  if(path==="/bootstrap-static/")return c.bootstrap;
+  if(path==="/fixtures/")return c.fixtures;
+  const teamMatch=path.match(/^\/entry\/([^/]+)\/$/);
+  if(teamMatch)return c.team;
+  const historyMatch=path.match(/^\/entry\/([^/]+)\/history\/$/);
+  if(historyMatch)return c.history;
+  const picksMatch=path.match(/^\/entry\/([^/]+)\/event\/([0-9]+)\/picks\/$/);
+  if(picksMatch)return c.picks;
+  throw Error("Unsupported FPL endpoint");
 }
 
 export const getBootstrap=()=>fpl("/bootstrap-static/");
