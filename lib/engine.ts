@@ -350,10 +350,11 @@ function chipMetrics(squad:any[],fixtures:any[],gw:number){
   const bbOpportunity=Number((bb-(futureBB?.score||0)).toFixed(2));
   return{doublePlayers,benchScore:bb,captainScore:tc,base,tcGain:tc,bbGain:bb,currentDouble,futureTC,futureBB,tcOpportunity,bbOpportunity};
 }
-function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number){
+function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number,lookahead=1){
   const byPos:any={1:[],2:[],3:[],4:[]};
   pool.forEach(p=>byPos[p.position]?.push(p));
-  Object.values(byPos).forEach((a:any[])=>a.sort((x,y)=>weekScore(y,fixtures,gw+0)-weekScore(x,fixtures,gw+0)));
+  const playerHorizonScore=(p:any)=>{let s=0;for(let g=gw;g<=Math.min(38,gw+lookahead-1);g++)s+=weekScore(p,fixtures,g);return s};
+  Object.values(byPos).forEach((a:any[])=>a.sort((x,y)=>playerHorizonScore(y)-playerHorizonScore(x)));
   const limits:any={1:18,2:35,3:45,4:25}; let beams:any=[{squad:[],cost:0,score:0,clubs:{}}];
   for(const pos of [1,2,3,4]){
     const need=pos===1?2:pos===2?5:pos===3?5:3,source=byPos[pos].slice(0,limits[pos]);
@@ -364,7 +365,7 @@ function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,bu
         if(st.squad.some(x=>x.id===p.id))continue;
         const nc=Number((st.cost+p.price).toFixed(1));if(nc>budget+.001)continue;
         const count=(st.clubs[p.team]||0)+1;if(count>3)continue;
-        next.push({squad:[...st.squad,p],cost:nc,score:st.score+weekScore(p,fixtures,gw),clubs:{...st.clubs,[p.team]:count}});
+        next.push({squad:[...st.squad,p],cost:nc,score:st.score+playerHorizonScore(p),clubs:{...st.clubs,[p.team]:count}});
       }
       next.sort((a,b)=>b.score-a.score);states=next.slice(0,160);
     }
@@ -379,10 +380,10 @@ function chipDecision(chip:string,squad:any[],pool:any[],fixtures:any[],gw:numbe
   if(chip==="bboost")return m.bbGain;
   const budget=Number((squad.reduce((s,x)=>s+sellPrice(x),0)).toFixed(1));
   if(chip==="freehit"){
-    const best=bestTemporarySquad(squad,pool,fixtures,gw,budget);
+    const best=bestTemporarySquad(squad,pool,fixtures,gw,budget,1);
     return Math.max(0,scoreState(best.map(p=>({player:p})),fixtures,gw,null).points-m.base);
   }
-  const rebuilt=bestTemporarySquad(squad,pool,fixtures,gw,budget);
+  const rebuilt=bestTemporarySquad(squad,pool,fixtures,gw,budget,7);
   return Math.max(0,scoreState(rebuilt.map(p=>({player:p})),fixtures,gw,null).points-m.base);
 }
 function chipThreshold(chip:string){return chip==="3xc"?2.0:chip==="bboost"?5.0:chip==="freehit"?3.0:4.0}
@@ -421,7 +422,7 @@ function chipReason(chip:string,squad:any[],pool:any[],fixtures:any[],gw:number,
   return "Hold: estimated immediate gain is only +"+gain.toFixed(1)+" points; keep the chip for a stronger opportunity.";
 }
 function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:number){
-  const best=bestTemporarySquad(initial,pool,fixtures,gw,budget);
+  const best=bestTemporarySquad(initial,pool,fixtures,gw,budget,7);
   const map=new Map(pool.map(p=>[p.id,p]));
   const squad=best.map((p:any)=>({element:p.id,player:map.get(p.id)||p,purchasePrice:p.price,sellPrice:p.price}));
   const cost=squad.reduce((s,x)=>s+x.player.price,0);
@@ -488,7 +489,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     next.sort((a,b)=>b.total-a.total);
     // Keep a materially wider frontier so a locally weaker move is not able
     // to eliminate a stronger multi-transfer path in the next GW.
-    states=next.slice(0,64);
+    states=next.slice(0,128);
   }
   return states[0]?.steps||[];
 }
@@ -525,7 +526,7 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
   const norm=normaliseModelPool(pool.map(x=>({...x,...x.modelFeatures})));
   const scored=norm.map(x=>({...x,historicalScore:historicalModelScore(x)}));
   const byId=new Map(scored.map(p=>[p.id,p]));
-  pool=scored;
+  pool=scored.map((p:any)=>({...p,projected:Number(weekScore(p,fixtures,gw).toFixed(2))}));
   const current=picks.map(x=>{const player=byId.get(x.element);return{...x,player,purchasePrice:Number(x.purchase_price??x.purchasePrice??x.now_cost??player?.price??0)/10,sellPrice:Number(x.selling_price??x.now_cost??player?.price??0)/10}}).filter(x=>x.player);
   const built=buildXI(current,fixtures,gw),xi=built.xi,xiIds=new Set(xi.map(x=>x.player.id));
   const currentXI=current.filter((x:any)=>Number((x as any).position||0)>=1&&Number((x as any).position||0)<=11);
