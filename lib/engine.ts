@@ -205,7 +205,14 @@ function buildXI(squad:any[],fixtures:any[],gw:number){
   return{xi:best,bestScore,formation};
 }
 function captainPlan(xi:any[],fixtures:any[],gw:number){
-  const ranked=[...xi].map(x=>({...x,score:weekScore(x.player,fixtures,gw),ceiling:x.player.ceiling||0})).sort((a,b)=>(b.score+b.ceiling*.12)-(a.score+a.ceiling*.12));
+  const ranked=[...xi].map(x=>({...x,score:weekScore(x.player,fixtures,gw),ceiling:x.player.ceiling||0}))
+    .sort((a,b)=>{
+      const diff=b.score-a.score;
+      // Expected points are the primary captain objective. Ceiling is only a
+      // tie-break when two options are effectively level; otherwise a high
+      // variance player cannot displace a materially higher expected scorer.
+      return Math.abs(diff)>.15?diff:(b.score+b.ceiling*.03)-(a.score+a.ceiling*.03);
+    });
   return{captain:ranked[0]?.player||null,vice:ranked[1]?.player||null,candidates:ranked.slice(0,5).map(x=>({name:x.player.name,id:x.player.id,score:x.score,ceiling:x.ceiling}))};
 }
 function clubCount(squad:any[],team:number){return squad.filter(x=>x.player.team===team).length}
@@ -297,19 +304,16 @@ function squadHorizonDelta(squad:any[],candidate:any[],fixtures:any[],gw:number,
   return Number(delta.toFixed(2));
 }
 function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number,ft:number){
-  // First use the player-only differential to cheaply identify plausible
-  // candidates from the full legal pool. Then re-rank those candidates using
-  // the actual resulting XI and captain score across the 7-GW horizon.
-  // This is critical for premium players: selling a player who is also the
-  // likely captain must pay for the lost captaincy points.
+  // Every legal single-transfer candidate is now scored at squad level.
+  // Price only gates affordability; it never contributes to player quality.
+  // This prevents the cheap-player shortlist from accidentally deciding the
+  // strategy before the resulting XI/captain/horizon has been evaluated.
   const horizon=Math.min(7,39-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw-1,horizon);
-  const shortlist=[...all.slice(0,80),...all.filter(x=>x.cost<0).slice(0,20)];
-  const unique=[...new Map(shortlist.map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
-  const rows=unique.map(x=>{
+  const rows=all.map(x=>{
     const hit=ft>0?0:4;
     const result=applyTransfer(squad,x);
-    const playerValueDelta=squadHorizonDelta(squad,result,fixtures,gw,7);
+    const playerValueDelta=squadHorizonDelta(squad,result,fixtures,gw,horizon);
     return {
       ...x,
       playerValueDelta,
@@ -340,12 +344,10 @@ function substitutionPlan(squad:any[],fixtures:any[],gw:number){
 }
 function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number){
   const all=candidates(squad,pool,bank,fixtures,gw,7);
-  const shortlist=[...all.slice(0,80),...all.filter(x=>x.cost<0).slice(0,20)];
-  const unique=[...new Map(shortlist.map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
   const baseValue=scoreState(squad,fixtures,gw,null).points;
-  const rows=unique.map(x=>{
+  const rows=all.map(x=>{
     const result=applyTransfer(squad,x);
-    const horizonDelta=squadHorizonDelta(squad,result,fixtures,gw,7);
+    const horizonDelta=squadHorizonDelta(squad,result,fixtures,gw,Math.min(7,39-gw));
     const nextGwGain=scoreState(result,fixtures,gw,null).points-baseValue;
     return {
       in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,
