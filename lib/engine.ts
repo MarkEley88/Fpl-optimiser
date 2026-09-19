@@ -390,9 +390,19 @@ function chipShouldPlay(chip:string,squad:any[],pool:any[],fixtures:any[],gw:num
   if(chipUsed(history,chip,gw))return false;
   if(gw===1&&(chip==="wildcard"||chip==="freehit"))return false;
   if(chip==="freehit"&&freeHitBlocked(history,gw))return false;
+  const m=chipMetrics(squad,fixtures,gw);
   if(chip==="3xc"){
-    const m=chipMetrics(squad,fixtures,gw);
-    return m.currentDouble && m.tcGain>=chipThreshold(chip) && m.tcOpportunity>=1.5;
+    // Triple Captain is not restricted to double gameweeks. Use it when the
+    // current captain opportunity materially beats the best remaining captain
+    // opportunity in the same half-season and clears a minimum quality bar.
+    const benchmark=m.futureTC?.score||0;
+    return m.tcGain>=6 && m.tcGain>=benchmark+1.0;
+  }
+  if(chip==="bboost"){
+    // Bench Boost is driven by the four-player bench, not the starting XI.
+    // Compare today's bench to the strongest remaining bench opportunity.
+    const benchmark=m.futureBB?.score||0;
+    return m.bbGain>=6 && m.bbGain>=benchmark+1.0;
   }
   return chipDecision(chip,squad,pool,fixtures,gw,history)>=chipThreshold(chip);
 }
