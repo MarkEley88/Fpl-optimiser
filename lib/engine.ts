@@ -525,7 +525,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   const SECOND_PAIR_KEEP=10;
 
   type State={
-    squad:any[],bank:number,ft:number,total:number,steps:any[],usedChips:string[]
+    squad:any[],bank:number,ft:number,total:number,steps:any[],usedChips:string[],
+    recentMoves:{gw:number,outId:number,inId:number}[]
   };
 
   let states:State[]=[{
@@ -534,7 +535,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     ft:getFT(history,startGw,entryHistory),
     total:0,
     steps:[],
-    usedChips:[]
+    usedChips:[],
+    recentMoves:[]
   }];
 
   const fixedFuture=(squad:any[],fromGw:number)=>{
@@ -557,6 +559,12 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     for(const st of states){
       const base=scoreState(st.squad,fixtures,gw,null);
       const earned=Math.min(5,st.ft+1);
+      // Prevent rapid A→B→A churn caused by small weekly projection swings.
+      // Genuine reversals remain possible when the footballing gain is material.
+      const recentReversal=(outId:number,inId:number)=>st.recentMoves.some(m=>
+        gw-m.gw<=2 && m.outId===inId && m.inId===outId
+      );
+      const reversalThreshold=1.5;
 
       // 1) HOLD — always retain the baseline path.
       const hold:State={
@@ -574,6 +582,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       // the resulting XI/captain outcome over the seven-GW horizon.
       const singles=strategicCandidates(st.squad,pool,st.bank,fixtures,gw,st.ft)
         .filter((x:any)=>x.cost<=st.bank+.001)
+        .filter((x:any)=>!recentReversal(Number(x.out.player.id),Number(x.in.id)) || Number(x.delta||0)>=reversalThreshold)
         .slice(0,SINGLE_KEEP);
 
       for(const c of singles){
@@ -584,6 +593,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         const nf=Math.min(5,Math.max(0,st.ft-1)+1);
         next.push({
           ...st,squad:sq,bank:nb,ft:nf,
+          recentMoves:[...st.recentMoves,{gw,outId:Number(c.out.player.id),inId:Number(c.in.id)}].slice(-4),
           total:st.total+gain.points-hit,
           steps:[...st.steps,{
             gw,
@@ -630,6 +640,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           // same incoming player twice.
           if(Number(a.out.player.id)===Number(b.out.player.id))continue;
           if(Number(a.in.id)===Number(b.in.id))continue;
+          if(recentReversal(Number(a.out.player.id),Number(a.in.id)))continue;
+          if(recentReversal(Number(b.out.player.id),Number(b.in.id)))continue;
 
           const totalCost=Number((a.cost+b.cost).toFixed(1));
           if(totalCost>st.bank+.001)continue;
@@ -656,6 +668,10 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         next.push({
           ...st,
           squad:p.sq,bank:nb,ft:nf,
+          recentMoves:[...st.recentMoves,
+            {gw,outId:Number(p.a.out.player.id),inId:Number(p.a.in.id)},
+            {gw,outId:Number(p.b.out.player.id),inId:Number(p.b.in.id)}
+          ].slice(-4),
           total:st.total+p.gain.points-p.hit,
           steps:[...st.steps,{
             gw,
@@ -679,7 +695,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           const rg=scoreState(rebuilt.squad,fixtures,gw,null);
           if(rg.points>base.points){
             next.push({
-              ...st,squad:rebuilt.squad,bank:rebuilt.bank,ft:earned,
+              ...st,squad:rebuilt.squad,bank:rebuilt.bank,ft:earned,recentMoves:[],
               total:st.total+rg.points,
               steps:[...st.steps,{
                 gw,action:"Wildcard rebuild",chip:"Wildcard",bank:rebuilt.bank,ft:earned,
