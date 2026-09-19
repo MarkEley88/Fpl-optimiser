@@ -299,11 +299,11 @@ function substitutionPlan(squad:any[],fixtures:any[],gw:number){
   return rows.sort((a,b)=>b.gain-a.gain).slice(0,5);
 }
 function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number){
-  return candidates(squad,pool,bank,fixtures,gw,5).filter(x=>x.delta>0.35).slice(0,8).map(x=>({
+  return candidates(squad,pool,bank,fixtures,gw,7).filter(x=>x.delta>0.35).slice(0,8).map(x=>({
     in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,
     delta:x.delta,nextGwGain:Number((weekScore(x.in,fixtures,gw+1)-weekScore(x.out.player,fixtures,gw+1)).toFixed(2)),
     price:x.in.price,position:posName(x.in.position),cost:x.cost,
-    reason:(x.delta>=4?"Strong 3-GW upgrade":x.delta>=2?"Good 3-GW upgrade":"Marginal upgrade")+"; "+(x.cost>0?"costs £"+x.cost.toFixed(1)+"m":"releases £"+Math.abs(x.cost).toFixed(1)+"m")
+    reason:(x.delta>=6?"Strong 7-GW upgrade":x.delta>=3?"Good 7-GW upgrade":"Marginal 7-GW upgrade")+"; "+(x.cost>0?"costs £"+x.cost.toFixed(1)+"m":"releases £"+Math.abs(x.cost).toFixed(1)+"m")
   }));
 }
 function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){
