@@ -475,7 +475,10 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         }
       }
     }
-    next.sort((a,b)=>b.total-a.total);\n    // Keep a materially wider frontier so a locally weaker move is not able\n    // to eliminate a stronger multi-transfer path in the next GW.\n    states=next.slice(0,64);
+    next.sort((a,b)=>b.total-a.total);
+    // Keep a materially wider frontier so a locally weaker move is not able
+    // to eliminate a stronger multi-transfer path in the next GW.
+    states=next.slice(0,64);
   }
   return states[0]?.steps||[];
 }
