@@ -10,7 +10,7 @@ function fixtureScore(f:any,teamId:number){
   if(!f)return .5;
   const home=f.team_h===teamId;
   const venue=home?1.05:.95;
-  // Do not use FPL's FDR. The optimiser uses the live league table position
+  // Deployment sync: keep the live fixture model source explicit.\n  // Do not use FPL's FDR. The optimiser uses the live league table position
   // and live team form supplied by the bootstrap-static API instead.
   const opponentRank=Number(home?f.team_a_rank:f.team_h_rank)||0;
   const teamRank=Number(home?f.team_h_rank:f.team_a_rank)||0;
