@@ -154,7 +154,13 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
 }
 const posName=(p:number)=>({1:"Goalkeeper",2:"Defender",3:"Midfielder",4:"Forward"} as any)[p]||"Unknown";
 
+const WEEK_SCORE_CACHE=new Map<string,number>();
+const SCORE_STATE_CACHE=new Map<string,any>();
+
 function weekScore(p:any,fixtures:any[],gw:number){
+  const cacheKey=String(p.id)+":"+String(gw);
+  const cached=WEEK_SCORE_CACHE.get(cacheKey);
+  if(cached!==undefined)return cached;
   const fs=eventFixtures(p.team,fixtures,gw);if(!fs.length)return 0;
   const raw=p.raw||p;
   const minutes=Number(p.expectedMinutes||expectedMinutes(p));
@@ -164,7 +170,9 @@ function weekScore(p:any,fixtures:any[],gw:number){
   const modelBase=clamp(2+hs*.55,0,10);
   const currentBase=Math.max(0,sum);
   const modelAdjusted=modelBase*fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;
-  return Number(Math.max(0,currentBase*.72+modelAdjusted*.28).toFixed(2));
+  const value=Number(Math.max(0,currentBase*.72+modelAdjusted*.28).toFixed(2));
+  WEEK_SCORE_CACHE.set(cacheKey,value);
+  return value;
 }
 function selectionScore(p:any,fixtures:any[],gw:number){
   const current=weekScore(p,fixtures,gw);
@@ -307,12 +315,17 @@ function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:numb
   }));
 }
 function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){
+  const key=String(gw)+":"+String(chip||"none")+":"+squad.map(x=>x.player.id).sort((a,b)=>a-b).join(",");
+  const cached=SCORE_STATE_CACHE.get(key);
+  if(cached)return cached;
   const built=buildXI(squad,fixtures,gw),cap=captainPlan(built.xi,fixtures,gw);
   let points=built.xi.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
   if(cap.captain)points+=weekScore(cap.captain,fixtures,gw);
   if(chip==="3xc"&&cap.captain)points+=weekScore(cap.captain,fixtures,gw);
   if(chip==="bboost")points+=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id)).reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
-  return{points,xi:built.xi,formation:built.formation,cap};
+  const result={points,xi:built.xi,formation:built.formation,cap};
+  SCORE_STATE_CACHE.set(key,result);
+  return result;
 }
 function bestFutureCaptain(squad:any[],fixtures:any[],gw:number){
   const end=gw<=19?19:38; const rows:any[]=[];
@@ -501,6 +514,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   return states[0]?.steps||[];
 }
 export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null){
+  WEEK_SCORE_CACHE.clear();
+  SCORE_STATE_CACHE.clear();
   const horizon=Math.min(38,gw+6);
   let pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw));
   // Recent element-summary calls are intentionally not made at request time. The
