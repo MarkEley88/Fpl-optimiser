@@ -519,8 +519,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   // - Future transfers are represented by carrying multiple complete states forward;
   //   we never treat a player's price as part of his footballing value.
   const endGw=Math.min(38,startGw+6);
-  const BEAM=16;
-  const SINGLE_KEEP=24;
+  const BEAM=12;
+  const SINGLE_KEEP=20;
   const FIRST_PAIR_KEEP=10;
   const SECOND_PAIR_KEEP=10;
 
@@ -551,6 +551,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   };
 
   for(let gw=startGw;gw<=endGw;gw++){
+    console.log("[decision-plan] starting GW",gw,"states",states.length);
     const next:any[]=[];
 
     for(const st of states){
@@ -598,12 +599,12 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       // individually affordable; only the combined net cost must be affordable.
       // This directly tests "downgrade here -> upgrade there" strategies.
       const firstAll=makeCandidates(st.squad,pool,Infinity,fixtures,gw,7);
-      const firstPreselect=[...firstAll.slice(0,40),...firstAll.filter((x:any)=>x.cost<0).slice(0,24)];
-      const firstScored=firstPreselect.map((x:any)=>{
-        const sq=applyTransfer(st.squad,x);
-        const delta=squadHorizonDelta(st.squad,sq,fixtures,gw,Math.min(7,endGw-gw+1));
-        return {...x,combinedDelta:delta};
-      }).sort((a:any,b:any)=>b.combinedDelta-a.combinedDelta);
+      const firstPreselect=[...firstAll.slice(0,16),...firstAll.filter((x:any)=>x.cost<0).slice(0,12)];
+      // makeCandidates is already ordered by pure footballing points delta. Use
+      // that cheap ordering to narrow the pair search, then score the COMPLETE
+      // two-transfer squad exactly below. This avoids evaluating thousands of
+      // expensive horizon/XI calculations for moves that cannot reach the pair.
+      const firstScored=firstPreselect.map((x:any)=>({...x,combinedDelta:x.delta}));
 
       const firstFunding=firstScored.filter((x:any)=>x.cost<0).slice(0,20);
       const firstPool=[...new Map(
@@ -615,12 +616,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       for(const a of firstPool){
         const afterA=applyTransfer(st.squad,a);
         const secondAll=makeCandidates(afterA,pool,Infinity,fixtures,gw,2);
-        const secondPreselect=[...secondAll.slice(0,30),...secondAll.filter((x:any)=>x.cost<0).slice(0,16)];
-        const secondScored=secondPreselect.map((x:any)=>{
-          const sq=applyTransfer(afterA,x);
-          const delta=squadHorizonDelta(st.squad,sq,fixtures,gw,Math.min(7,endGw-gw+1));
-          return {...x,combinedDelta:delta};
-        }).sort((x:any,y:any)=>y.combinedDelta-x.combinedDelta);
+        const secondPreselect=[...secondAll.slice(0,16),...secondAll.filter((x:any)=>x.cost<0).slice(0,10)];
+        const secondScored=secondPreselect.map((x:any)=>({...x,combinedDelta:x.delta}));
 
         const secondFunding=secondScored.filter((x:any)=>x.cost<0).slice(0,16);
         const secondPool=[...new Map(
@@ -729,6 +726,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     // later upgrade cannot be pruned just because it is weaker this week.
     next.sort((a:any,b:any)=>stateRank(b,gw+1)-stateRank(a,gw+1));
     states=next.slice(0,BEAM);
+    console.log("[decision-plan] completed GW",gw,"frontier",states.length);
   }
 
   // At the end, choose by actual cumulative points. No heuristic continuation
