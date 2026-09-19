@@ -6,7 +6,7 @@ export const runtime="nodejs";
 export const dynamic="force-dynamic";
 export const maxDuration=300;
 
-export async function GET(){
+export async function GET(request:Request){
   const id=process.env.FPL_TEAM_ID||"1187241";
   const started=Date.now();
   try{
@@ -17,7 +17,7 @@ export async function GET(){
     const gw=Number(t.current_event||h.current?.at(-1)?.event||1);
     const picks:any=await getPicks(id,gw);
     const entryHistory:any=(picks as any)?.entry_history??null;
-    const result=await optimiseSquad((picks as any)?.picks||[],b.elements||[],f,gw,Number((entryHistory as any)?.bank||0)/10,h,entryHistory);
+    const url=new URL(request.url);\n    const planOnly=url.searchParams.has("plan");\n    const fast=url.searchParams.has("fast")&&!planOnly;\n    const result=await optimiseSquad((picks as any)?.picks||[],b.elements||[],f,gw,Number((entryHistory as any)?.bank||0)/10,h,entryHistory,!fast);
     return NextResponse.json({connected:true,team:t,gw,picks,history:h,result,generatedAt:new Date().toISOString(),elapsedMs:Date.now()-started});
   }catch(e){
     console.error("optimise failed",e);
