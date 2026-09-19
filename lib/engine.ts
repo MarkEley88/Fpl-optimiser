@@ -183,7 +183,12 @@ function weekScore(p:any,fixtures:any[],gw:number){
   const modelAdjusted=modelBase*fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;
   // IMPORTANT: no player price, transfer cost or budget value enters this
   // score. This function measures expected FPL output only.
-  const value=Number(Math.max(0,currentBase*.88+modelAdjusted*.12).toFixed(2));
+  // Availability is part of expected footballing output. A player who is
+  // injured or has a low chance of playing must not be treated like a fully
+  // available player simply because his underlying per-minute projection is
+  // strong. Price is still completely excluded from this score.
+  const availability=availabilityProb(p);
+  const value=Number(Math.max(0,(currentBase*.88+modelAdjusted*.12)*availability).toFixed(2));
   WEEK_SCORE_CACHE.set(cacheKey,value);
   return value;
 }
@@ -806,6 +811,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
 export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null,includeDecisionPlan=true,fastMode=false,planOnly=false){
   WEEK_SCORE_CACHE.clear();
   SCORE_STATE_CACHE.clear();
+  SUBSTITUTION_CACHE.clear();
   const horizon=Math.min(38,gw+6);
   let pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw));
   // Recent element-summary calls are intentionally not made at request time. The
