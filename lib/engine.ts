@@ -507,21 +507,21 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         const sq=applyTransfer(st.squad,c),nb=Number((st.bank-c.cost).toFixed(1)),gain=scoreState(sq,fixtures,gw,null),nf=Math.min(5,Math.max(0,st.ft-1)+1);
         next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points-hit,rank:st.total+gain.points-hit+lookaheadValue(sq,gw+1),steps:[...st.steps,{gw,action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points-hit).toFixed(2))}]});
       }
-      {
+      if(states.indexOf(st)<8){
         // Two transfers are evaluated as one combined squad change. The
         // transfers do not need to be individually affordable in sequence:
         // a downgrade can fund an upgrade elsewhere in the same GW.
         const twoHit=Math.max(0,2-st.ft)*4;
         const firstBase=candidates(st.squad,pool,Infinity,fixtures,gw-1,7);
         const firstRows=firstBase.map(x=>({...x,hit:st.ft>0?0:4,playerValueDelta:x.delta,strategicDelta:x.delta-(st.ft>0?0:4)})).sort((a,b)=>b.strategicDelta-a.strategicDelta);
-        const firstFunding=[...firstRows].filter(x=>x.cost<0).sort((a,b)=>a.cost-b.cost).slice(0,16);
-        const firstPool=[...new Map([...firstRows.slice(0,24),...firstFunding].map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
+        const firstFunding=[...firstRows].filter(x=>x.cost<0).sort((a,b)=>a.cost-b.cost).slice(0,10);
+        const firstPool=[...new Map([...firstRows.slice(0,16),...firstFunding].map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
         const pairStates:any[]=[];
         for(const a of firstPool){
           const afterA=applyTransfer(st.squad,a);
           const secondRows=candidates(afterA,pool,Infinity,fixtures,gw,2);
-          const secondFunding=[...secondRows].filter(x=>x.cost<0).sort((x,y)=>x.cost-y.cost).slice(0,12);
-          const secondPool=[...new Map([...secondRows.slice(0,24),...secondFunding].map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
+          const secondFunding=[...secondRows].filter(x=>x.cost<0).sort((x,y)=>x.cost-y.cost).slice(0,8);
+          const secondPool=[...new Map([...secondRows.slice(0,14),...secondFunding].map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
           for(const b of secondPool){
             if(Number(a.out.player.id)>=Number(b.out.player.id))continue;
             const totalCost=Number((a.cost+b.cost).toFixed(1));
@@ -542,7 +542,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           next.push({...st,squad:p.sq,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,total,rank:total+future,steps:[...st.steps,{gw,action:p.a.in.name+" for "+p.a.out.player.name+" + "+p.b.in.name+" for "+p.b.out.player.name+(twoHit?" (-"+twoHit+" points)":""),chip:null,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,formation:p.gain.formation,cap:p.gain.cap,projectedGain:Number((p.gain.points-base.points-twoHit).toFixed(2))}]});
         }
       }
-      for(const chip of CHIP_NAMES){
+      }
+      if(states.indexOf(st)<8) for(const chip of CHIP_NAMES){
         if(st.usedChips.includes(chip)||chipUsed(history,chip,gw))continue;
         if(!chipShouldPlay(chip,st.squad,pool,fixtures,gw,history))continue;
         const gain=scoreState(st.squad,fixtures,gw,chip);
@@ -563,7 +564,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     next.sort((a,b)=>(b.rank??b.total)-(a.rank??a.total));
     // Keep a materially wider frontier so a locally weaker move is not able
     // to eliminate a stronger multi-transfer path in the next GW.
-    states=next.slice(0,64);
+    states=next.slice(0,32);
   }
   return states[0]?.steps||[];
 }
