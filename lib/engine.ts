@@ -311,7 +311,31 @@ function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],g
   // only; it is never part of footballing value.
   const horizon=Math.min(7,39-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw-1,horizon);
-  const preselect=all.slice(0,80);
+  // Squad-aware shortlist: retain the strongest overall moves plus several
+  // alternatives for every outgoing player and dedicated funding downgrades.
+  // This prevents the exact XI evaluation from being dominated by one position
+  // or one outgoing player while keeping the runtime bounded.
+  const byOutgoing=new Map<number,any[]>();
+  for(const x of all){
+    const id=Number(x.out.player.id);
+    const arr=byOutgoing.get(id)||[];
+    if(arr.length<5)arr.push(x);
+    byOutgoing.set(id,arr);
+  }
+  const byIncoming=new Map<number,any[]>();
+  for(const x of all){
+    const id=Number(x.in.id);
+    const arr=byIncoming.get(id)||[];
+    if(arr.length<2)arr.push(x);
+    byIncoming.set(id,arr);
+  }
+  const shortlist:any[]=[
+    ...all.slice(0,32),
+    ...Array.from(byOutgoing.values()).flat(),
+    ...Array.from(byIncoming.values()).flat(),
+    ...all.filter((x:any)=>x.cost<0).slice(0,24)
+  ];
+  const preselect=[...new Map(shortlist.map((x:any)=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()].slice(0,100);
   const rows=preselect.map(x=>{
     const hit=ft>0?0:4;
     const result=applyTransfer(squad,x);
