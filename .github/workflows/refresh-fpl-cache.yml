@@ -1,0 +1,58 @@
+name: Refresh FPL live cache
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch live FPL data
+        run: |
+          python - <<'PY'
+          import json, urllib.request, pathlib, time
+
+          base = "https://fantasy.premierleague.com/api"
+          team_id = "1187241"
+          endpoints = {
+              "bootstrap": "/bootstrap-static/",
+              "fixtures": "/fixtures/",
+              "team": f"/entry/{team_id}/",
+              "history": f"/entry/{team_id}/history/",
+          }
+
+          headers = {
+              "User-Agent": "Mozilla/5.0",
+              "Accept": "application/json",
+              "Referer": "https://fantasy.premierleague.com/",
+          }
+
+          out = {"generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+          for key, path in endpoints.items():
+              req = urllib.request.Request(base + path, headers=headers)
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  out[key] = json.load(r)
+
+          gw = out["team"].get("current_event") or (out["history"].get("current") or [{}])[-1].get("event") or 1
+          picks_path = f"/entry/{team_id}/event/{gw}/picks/"
+          req = urllib.request.Request(base + picks_path, headers=headers)
+          with urllib.request.urlopen(req, timeout=30) as r:
+              out["picks"] = json.load(r)
+
+          pathlib.Path("data").mkdir(exist_ok=True)
+          pathlib.Path("data/fpl-cache.json").write_text(json.dumps(out, separators=(",", ":")))
+          print("Cached GW", gw, "at", out["generatedAt"])
+          PY
+      - name: Commit cache
+        run: |
+          git config user.name "fpl-optimiser-bot"
+          git config user.email "fpl-optimiser-bot@users.noreply.github.com"
+          git add data/fpl-cache.json
+          git diff --cached --quiet || git commit -m "chore: refresh FPL live cache"
+          git push
