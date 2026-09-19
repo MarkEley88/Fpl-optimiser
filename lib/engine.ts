@@ -464,7 +464,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       // search chooses which states to carry forward.
       const cs=strategicCandidates(st.squad,pool,st.bank,fixtures,gw,st.ft)
         .filter((x:any)=>x.cost<=st.bank+.001)
-        .slice(0,80);
+        .slice(0,40);
       for(const c of cs){
         const hit=c.hit;
         const sq=applyTransfer(st.squad,c),nb=Number((st.bank-c.cost).toFixed(1)),gain=scoreState(sq,fixtures,gw,null),nf=Math.min(5,Math.max(0,st.ft-1)+1);
@@ -478,7 +478,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           const afterA=applyTransfer(st.squad,a);
           const bankAfterA=Number((st.bank-a.cost).toFixed(1));
           if(bankAfterA<-.001)continue;
-          for(const b of candidates(afterA,pool,bankAfterA,fixtures,gw,2)){
+          for(const b of candidates(afterA,pool,bankAfterA,fixtures,gw,2).slice(0,40)){
             if(b.out.player.id===a.out.player.id)continue;
             const nb=Number((st.bank-a.cost-b.cost).toFixed(1));if(nb<-.001)continue;
             const sq=applyTransfer(afterA,b),gain=scoreState(sq,fixtures,gw,null);
@@ -509,7 +509,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     next.sort((a,b)=>(b.rank??b.total)-(a.rank??a.total));
     // Keep a materially wider frontier so a locally weaker move is not able
     // to eliminate a stronger multi-transfer path in the next GW.
-    states=next.slice(0,128);
+    states=next.slice(0,64);
   }
   return states[0]?.steps||[];
 }
