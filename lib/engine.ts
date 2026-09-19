@@ -32,12 +32,12 @@ function fixtureScore(f:any,teamId:number){
 function eventFixtures(team:number,fixtures:any[],gw:number){return fixtures.filter(f=>Number(f.event)===gw&&(f.team_h===team||f.team_a===team))}
 function modelFeatures(p:any,currentGw=1){
   const mins=Math.max(1,Number(p.minutes||0)), gws=Math.max(1,currentGw);
-  const p90=Number(p.total_points||p.points||0)/(mins/90);
+  const p90=rate(Number(p.total_points||p.points||0),mins);
   const xgi90=rate(p.expected_goal_involvements,mins,rate(Number(p.goals_scored||0)+Number(p.assists||0),mins));
   const xg90=rate(p.expected_goals,mins,rate(p.goals_scored,mins));
   const xa90=rate(p.expected_assists,mins,rate(p.assists,mins));
   const dc90=rate(p.defensive_contribution,mins);
-  const gamesPlayed=Math.max(1,Number(p.appearances||p.minutes?1:0));
+  const gamesPlayed=Math.max(1,Number(p.appearances||0));
   return {
     form3:Number(p.form||0),form5:Number(p.form||0),p90,xgi90,xg90,xa90,dc90,
     bonus90:rate(p.bonus,mins),bps90:rate(p.bps,mins),ict90:rate(p.ict_index,mins),
@@ -78,6 +78,9 @@ function startProbability(p:any){
   }
   const starts=Number(p.starts||0),apps=Number(p.appearances||0);
   if(!apps&&!starts)return .2*availabilityProb(p);
+  // A player with appearances but no starts is normally a bench option.
+  // Do not let a tiny early-season sample manufacture a high start probability.
+  if(starts<=0)return clamp(availabilityProb(p)*.12,.02,.25);
   const season=starts/Math.max(1,apps||starts);
   const minutesRate=Number(p.minutes||0)/(90*Math.max(1,apps||starts));
   return clamp(availabilityProb(p)*(.62*clamp(season)+.28*clamp(minutesRate)+.10),.02,.98);
@@ -89,7 +92,13 @@ function expectedMinutes(p:any){
   const benchAppear=availability*(1-start)*.72;
   return Math.round(start*startMinutes+benchAppear*benchMinutes);
 }
-function rate(total:any,minutes:number,fallback=0){const m=Math.max(1,minutes);return Number(total||0)/(m/90)}
+// Stabilise per-90 rates for tiny samples. A 3-minute cameo with one goal
+// must not turn into a 30-goal/90 projection and dominate the optimiser.
+function rate(total:any,minutes:number,fallback=0){
+  const m=Math.max(180,Number(minutes||0));
+  const value=Number(total||0)/(m/90);
+  return Number.isFinite(value)&&value!==0?value:Number(fallback||0);
+}
 function fixtureFactor(p:any,fixtures:any[],gw:number){
   const fs=eventFixtures(p.team,fixtures,gw);if(!fs.length)return 0;
   return fs.reduce((s,f)=>s+fixtureScore(f,p.team),0)/fs.length;
