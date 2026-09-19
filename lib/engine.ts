@@ -542,7 +542,6 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           next.push({...st,squad:p.sq,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,total,rank:total+future,steps:[...st.steps,{gw,action:p.a.in.name+" for "+p.a.out.player.name+" + "+p.b.in.name+" for "+p.b.out.player.name+(twoHit?" (-"+twoHit+" points)":""),chip:null,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,formation:p.gain.formation,cap:p.gain.cap,projectedGain:Number((p.gain.points-base.points-twoHit).toFixed(2))}]});
         }
       }
-      }
       if(states.indexOf(st)<8) for(const chip of CHIP_NAMES){
         if(st.usedChips.includes(chip)||chipUsed(history,chip,gw))continue;
         if(!chipShouldPlay(chip,st.squad,pool,fixtures,gw,history))continue;
