@@ -433,22 +433,29 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   // Start with the current gameweek so the displayed FT balance is the
   // balance the manager actually has now. A free transfer is earned only
   // when moving into the following gameweek.
-  for(let gw=startGw;gw<=Math.min(38,startGw+6);gw++){
+  const endGw=Math.min(38,startGw+6);
+  const lookaheadValue=(squad:any[],fromGw:number)=>{
+    let v=0;
+    for(let g=fromGw;g<=endGw;g++)v+=scoreState(squad,fixtures,g,null).points;
+    return v;
+  };
+  for(let gw=startGw;gw<=endGw;gw++){
     const next:any[]=[];
     for(const st of states){
       const earned=Math.min(5,st.ft+1);
       const base=scoreState(st.squad,fixtures,gw,null);
-      next.push({...st,ft:earned,total:st.total+base.points,steps:[...st.steps,{gw,action:"Hold",chip:null,bank:st.bank,ft:st.ft,formation:base.formation,cap:base.cap,projectedGain:0}]});
+      next.push({...st,ft:earned,total:st.total+base.points,rank:st.total+base.points+lookaheadValue(st.squad,gw+1),steps:[...st.steps,{gw,action:"Hold",chip:null,bank:st.bank,ft:st.ft,formation:base.formation,cap:base.cap,projectedGain:0}]});
       // Evaluate the full legal single-transfer pool at every decision state.
       // We deliberately do not truncate this list before legality/affordability
       // checks: every eligible replacement is considered before the strategic
       // search chooses which states to carry forward.
       const cs=strategicCandidates(st.squad,pool,st.bank,fixtures,gw,st.ft)
-        .filter((x:any)=>x.strategicDelta>0 && x.cost<=st.bank+.001);
+        .filter((x:any)=>x.cost<=st.bank+.001)
+        .slice(0,80);
       for(const c of cs){
         const hit=c.hit;
         const sq=applyTransfer(st.squad,c),nb=Number((st.bank-c.cost).toFixed(1)),gain=scoreState(sq,fixtures,gw,null),nf=Math.min(5,Math.max(0,st.ft-1)+1);
-        next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points-hit,steps:[...st.steps,{gw,action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points-hit).toFixed(2))}]});
+        next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points-hit,rank:st.total+gain.points-hit+lookaheadValue(sq,gw+1),steps:[...st.steps,{gw,action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points-hit).toFixed(2))}]});
       }
       if(st.ft>=2){
         // Two-transfer combinations are generated from every strategically
@@ -464,7 +471,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
             const sq=applyTransfer(afterA,b),gain=scoreState(sq,fixtures,gw,null);
             if(gain.points<=base.points)continue;
             const nf=Math.min(5,st.ft-2+1);
-            next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points,steps:[...st.steps,{gw,action:a.in.name+" for "+a.out.player.name+" + "+b.in.name+" for "+b.out.player.name,chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points).toFixed(2))}]});
+            next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points,rank:st.total+gain.points+lookaheadValue(sq,gw+1),steps:[...st.steps,{gw,action:a.in.name+" for "+a.out.player.name+" + "+b.in.name+" for "+b.out.player.name,chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points).toFixed(2))}]});
           }
         }
       }
@@ -486,7 +493,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         }
       }
     }
-    next.sort((a,b)=>b.total-a.total);
+    next.sort((a,b)=>(b.rank??b.total)-(a.rank??a.total));
     // Keep a materially wider frontier so a locally weaker move is not able
     // to eliminate a stronger multi-transfer path in the next GW.
     states=next.slice(0,128);
