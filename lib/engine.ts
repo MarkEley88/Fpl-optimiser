@@ -513,7 +513,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   }
   return states[0]?.steps||[];
 }
-export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null,includeDecisionPlan=true,fastMode=false){
+export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null,includeDecisionPlan=true,fastMode=false,planOnly=false){
   WEEK_SCORE_CACHE.clear();
   SCORE_STATE_CACHE.clear();
   const horizon=Math.min(38,gw+6);
@@ -532,6 +532,9 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
   const currentBench=current.filter((x:any)=>Number((x as any).position||0)>=12&&Number((x as any).position||0)<=15);
 
   const bench=current.filter(x=>!xiIds.has(x.player.id)).sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
+  if(planOnly){
+    return {pool,current,decisionPlan:buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,entryHistory)};
+  }
   const starters=[...xi].sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
   const remaining=remainingChips(history,gw),usedChips=history?.chips||[];
   const chips=fastMode?[]:remaining.map((c:string)=>({chip:c,reason:chipReason(c,current,pool,fixtures,gw,history)}));
