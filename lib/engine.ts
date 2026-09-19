@@ -10,7 +10,8 @@ function fixtureScore(f:any,teamId:number){
   if(!f)return .5;
   const home=f.team_h===teamId;
   const venue=home?1.05:.95;
-  // Deployment sync: keep the live fixture model source explicit.\n  // Do not use FPL's FDR. The optimiser uses the live league table position
+  // Deployment sync: keep the live fixture model source explicit.
+  // Do not use FPL's FDR. The optimiser uses the live league table position
   // and live team form supplied by the bootstrap-static API instead.
   const opponentRank=Number(home?f.team_a_rank:f.team_h_rank)||0;
   const teamRank=Number(home?f.team_h_rank:f.team_a_rank)||0;
@@ -534,7 +535,12 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         }
         // Score the combined squads, then spend the expensive 7-GW lookahead
         // only on the strongest combined outcomes.
-        const baseFuture=lookaheadValue(st.squad,gw+1);\n        pairStates.sort((x,y)=>{\n          const xv=x.gain.points+lookaheadValue(x.sq,gw+1)-baseFuture-twoHit;\n          const yv=y.gain.points+lookaheadValue(y.sq,gw+1)-baseFuture-twoHit;\n          return yv-xv;\n        });
+        const baseFuture=lookaheadValue(st.squad,gw+1);
+        pairStates.sort((x,y)=>{
+          const xv=x.gain.points+lookaheadValue(x.sq,gw+1)-baseFuture-twoHit;
+          const yv=y.gain.points+lookaheadValue(y.sq,gw+1)-baseFuture-twoHit;
+          return yv-xv;
+        });
         for(const p of pairStates.slice(0,6)){
           const future=lookaheadValue(p.sq,gw+1);
           const nf=Math.min(5,Math.max(0,st.ft-2)+1);
