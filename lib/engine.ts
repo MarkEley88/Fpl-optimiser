@@ -393,7 +393,8 @@ function bestTemporarySquad(initial:any[],pool:any[],fixtures:any[],gw:number,bu
         if(st.squad.some(x=>x.id===p.id))continue;
         const nc=Number((st.cost+p.price).toFixed(1));if(nc>budget+.001)continue;
         const count=(st.clubs[p.team]||0)+1;if(count>3)continue;
-        next.push({squad:[...st.squad,p],cost:nc,score:st.score+playerHorizonScore(p),clubs:{...st.clubs,[p.team]:count}});
+        const nextSquad=[...st.squad,p];
+        next.push({squad:nextSquad,cost:nc,score:squadHorizonScore(nextSquad),clubs:{...st.clubs,[p.team]:count}});
       }
       next.sort((a,b)=>b.score-a.score);states=next.slice(0,160);
     }
@@ -493,7 +494,14 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           const afterA=applyTransfer(st.squad,a);
           const bankAfterA=Number((st.bank-a.cost).toFixed(1));
           if(bankAfterA<-.001)continue;
-          for(const b of candidates(afterA,pool,bankAfterA,fixtures,gw,2).slice(0,40)){
+          const secondCandidates=candidates(afterA,pool,bankAfterA,fixtures,gw,2);
+          // A funding downgrade can have a negative standalone delta while
+          // still enabling a much larger upgrade elsewhere. Keep both the
+          // best points upgrades and the strongest money-releasing options.
+          const secondByPoints=secondCandidates.slice(0,40);
+          const secondByFunding=[...secondCandidates].sort((x,y)=>x.cost-y.cost).slice(0,20);
+          const secondPool=new Map([...secondByPoints,...secondByFunding].map(x=>[String(x.out.player.id)+":"+String(x.in.id),x]));
+          for(const b of secondPool.values()){
             if(b.out.player.id===a.out.player.id)continue;
             const nb=Number((st.bank-a.cost-b.cost).toFixed(1));if(nb<-.001)continue;
             const sq=applyTransfer(afterA,b),gain=scoreState(sq,fixtures,gw,null);
