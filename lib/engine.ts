@@ -507,29 +507,38 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         const sq=applyTransfer(st.squad,c),nb=Number((st.bank-c.cost).toFixed(1)),gain=scoreState(sq,fixtures,gw,null),nf=Math.min(5,Math.max(0,st.ft-1)+1);
         next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points-hit,rank:st.total+gain.points-hit+lookaheadValue(sq,gw+1),steps:[...st.steps,{gw,action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points-hit).toFixed(2))}]});
       }
-      if(st.ft>=2){
-        // Two-transfer combinations are generated from every strategically
-        // positive first move, then every legal second replacement from the
-        // resulting squad. This removes the old 10x10 candidate truncation.
-        for(const a of cs){
+      {
+        // Two transfers are evaluated as one combined squad change. The
+        // transfers do not need to be individually affordable in sequence:
+        // a downgrade can fund an upgrade elsewhere in the same GW.
+        const twoHit=Math.max(0,2-st.ft)*4;
+        const firstRows=strategicCandidates(st.squad,pool,st.bank,fixtures,gw,st.ft);
+        const firstFunding=[...firstRows].filter(x=>x.cost<0).sort((a,b)=>a.cost-b.cost).slice(0,16);
+        const firstPool=[...new Map([...firstRows.slice(0,24),...firstFunding].map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
+        const pairStates:any[]=[];
+        for(const a of firstPool){
           const afterA=applyTransfer(st.squad,a);
-          const bankAfterA=Number((st.bank-a.cost).toFixed(1));
-          if(bankAfterA<-.001)continue;
-          const secondCandidates=candidates(afterA,pool,bankAfterA,fixtures,gw,2);
-          // A funding downgrade can have a negative standalone delta while
-          // still enabling a much larger upgrade elsewhere. Keep both the
-          // best points upgrades and the strongest money-releasing options.
-          const secondByPoints=secondCandidates.slice(0,40);
-          const secondByFunding=[...secondCandidates].sort((x,y)=>x.cost-y.cost).slice(0,20);
-          const secondPool=new Map([...secondByPoints,...secondByFunding].map(x=>[String(x.out.player.id)+":"+String(x.in.id),x]));
-          for(const b of secondPool.values()){
-            if(b.out.player.id===a.out.player.id)continue;
-            const nb=Number((st.bank-a.cost-b.cost).toFixed(1));if(nb<-.001)continue;
-            const sq=applyTransfer(afterA,b),gain=scoreState(sq,fixtures,gw,null);
-            if(gain.points<=base.points)continue;
-            const nf=Math.min(5,st.ft-2+1);
-            next.push({...st,squad:sq,bank:nb,ft:nf,total:st.total+gain.points,rank:st.total+gain.points+lookaheadValue(sq,gw+1),steps:[...st.steps,{gw,action:a.in.name+" for "+a.out.player.name+" + "+b.in.name+" for "+b.out.player.name,chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,projectedGain:Number((gain.points-base.points).toFixed(2))}]});
+          const secondRows=candidates(afterA,pool,Infinity,fixtures,gw,2);
+          const secondFunding=[...secondRows].filter(x=>x.cost<0).sort((x,y)=>x.cost-y.cost).slice(0,12);
+          const secondPool=[...new Map([...secondRows.slice(0,24),...secondFunding].map(x=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
+          for(const b of secondPool){
+            if(Number(a.out.player.id)>=Number(b.out.player.id))continue;
+            const totalCost=Number((a.cost+b.cost).toFixed(1));
+            if(totalCost>st.bank+.001)continue;
+            const sq=applyTransfer(afterA,b);
+            if(!validSquad(sq))continue;
+            const gain=scoreState(sq,fixtures,gw,null);
+            pairStates.push({a,b,sq,totalCost,gain});
           }
+        }
+        // Score the combined squads, then spend the expensive 7-GW lookahead
+        // only on the strongest combined outcomes.
+        pairStates.sort((x,y)=>y.gain.points-x.gain.points);
+        for(const p of pairStates.slice(0,6)){
+          const future=lookaheadValue(p.sq,gw+1);
+          const nf=Math.min(5,Math.max(0,st.ft-2)+1);
+          const total=st.total+p.gain.points-twoHit;
+          next.push({...st,squad:p.sq,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,total,rank:total-twoHit+future,steps:[...st.steps,{gw,action:p.a.in.name+" for "+p.a.out.player.name+" + "+p.b.in.name+" for "+p.b.out.player.name+(twoHit?" (-"+twoHit+" points)":""),chip:null,bank:Number((st.bank-p.totalCost).toFixed(1)),ft:nf,formation:p.gain.formation,cap:p.gain.cap,projectedGain:Number((p.gain.points-base.points-twoHit).toFixed(2))}]});
         }
       }
       for(const chip of CHIP_NAMES){
