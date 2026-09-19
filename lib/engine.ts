@@ -513,7 +513,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   }
   return states[0]?.steps||[];
 }
-export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null,includeDecisionPlan=true){
+export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null,includeDecisionPlan=true,fastMode=false){
   WEEK_SCORE_CACHE.clear();
   SCORE_STATE_CACHE.clear();
   const horizon=Math.min(38,gw+6);
@@ -534,7 +534,7 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
   const bench=current.filter(x=>!xiIds.has(x.player.id)).sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
   const starters=[...xi].sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
   const remaining=remainingChips(history,gw),usedChips=history?.chips||[];
-  const chips=remaining.map((c:string)=>({chip:c,reason:chipReason(c,current,pool,fixtures,gw,history)}));
+  const chips=fastMode?[]:remaining.map((c:string)=>({chip:c,reason:chipReason(c,current,pool,fixtures,gw,history)}));
   return{
     pool,current,starters,bench,
     transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),substitutionPlan:substitutionPlan(current,fixtures,gw),currentStartingXI:currentXI.sort((a:any,b:any)=>Number(a.position)-Number(b.position)).map((x:any)=>x.player.name),currentBench:currentBench.sort((a:any,b:any)=>Number(a.position)-Number(b.position)).map((x:any)=>x.player.name),
@@ -543,6 +543,6 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
     model:{name:"FPL Decision Engine v1.0",method:"broader FPL statistical model + live per-fixture projections + 7-GW transfer timing search + chip opportunity-cost layer",horizon:7,transferHitPoints:4,principles:["Optimise cumulative future gameweek points, not just the next GW","Evaluate every candidate's upcoming fixture run and transfer timing","Compare transfer cost, free-transfer state and future points together","Avoid hits unless the projected future gain exceeds the 4-point cost","Preserve information value and avoid reactive price chasing","Captain the highest expected-value option; use ceiling only as a tie-break","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
     chips:{remaining,suggestions:chips,used:usedChips},
     projectedGameweek:{points:Number(scoreState(current,fixtures,gw,null).points.toFixed(2)),captain:captainPlan(xi,fixtures,gw).captain,vice:captainPlan(xi,fixtures,gw).vice,formation:built.formation},
-    decisionPlan:includeDecisionPlan?buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,entryHistory):[]
+    decisionPlan:includeDecisionPlan?buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,entryHistory):[],
   };
 }
