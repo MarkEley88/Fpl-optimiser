@@ -645,7 +645,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         total:st.total+base.points,
         steps:[...st.steps,{
           gw,action:"Hold",chip:null,bank:st.bank,ft:st.ft,
-          formation:base.formation,cap:base.cap,substitutions:plannedSubstitutions(st.squad,fixtures,gw),projectedGain:0
+          formation:base.formation,cap:base.cap,projectedGain:0
         }]
       };
       next.push(hold);
@@ -670,7 +670,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           steps:[...st.steps,{
             gw,
             action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),
-            chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,substitutions:plannedSubstitutions(sq,fixtures,gw),
+            chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,
             projectedGain:Number((gain.points-base.points-hit).toFixed(2))
           }]
         });
@@ -748,7 +748,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           steps:[...st.steps,{
             gw,
             action:p.a.in.name+" for "+p.a.out.player.name+" + "+p.b.in.name+" for "+p.b.out.player.name+(p.hit?" (-"+p.hit+" points)":""),
-            chip:null,bank:nb,ft:nf,formation:p.gain.formation,cap:p.gain.cap,substitutions:plannedSubstitutions(p.sq,fixtures,gw),
+            chip:null,bank:nb,ft:nf,formation:p.gain.formation,cap:p.gain.cap,
             projectedGain:Number((p.gain.points-base.points-p.hit).toFixed(2))
           }]
         });
@@ -771,7 +771,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
               total:st.total+rg.points,
               steps:[...st.steps,{
                 gw,action:"Wildcard rebuild",chip:"Wildcard",bank:rebuilt.bank,ft:earned,
-                formation:rg.formation,cap:rg.cap,substitutions:plannedSubstitutions(rebuilt.squad,fixtures,gw),
+                formation:rg.formation,cap:rg.cap,
                 projectedGain:Number((rg.points-base.points).toFixed(2))
               }],
               usedChips:[...st.usedChips,chip]
