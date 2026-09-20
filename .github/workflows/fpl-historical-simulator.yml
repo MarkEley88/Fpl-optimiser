@@ -26,4 +26,6 @@ jobs:
           git config user.email "actions@github.com"
           git add lib/historical-model.ts
           git diff --cached --quiet || git commit -m "Update historical model weights"
+          git fetch origin main
+          git rebase origin/main
           git push
