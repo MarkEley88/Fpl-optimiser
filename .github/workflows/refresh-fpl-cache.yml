@@ -58,5 +58,27 @@ jobs:
           git config user.name "MarkEley88"
           git config user.email "329544909+MarkEley88@users.noreply.github.com"
           git add data/fpl-cache.json
-          git diff --cached --quiet || git commit -m "chore: refresh FPL live cache"
-          git push
+          if git diff --cached --quiet; then
+            echo "Cache unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore: refresh FPL live cache"
+
+          # Rebase onto the latest main before pushing so scheduled cache
+          # refreshes cannot overwrite concurrent application commits.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              echo "Rebase conflict; aborting."
+              git rebase --abort
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "Cache update pushed successfully on attempt $attempt."
+              exit 0
+            fi
+            echo "Push raced with another main update; retrying ($attempt/5)."
+            sleep $((attempt * 2))
+          done
+          echo "Unable to push cache update after 5 attempts."
+          exit 1
