@@ -28,4 +28,10 @@ jobs:
           git diff --cached --quiet || git commit -m "Update historical model weights"
           git fetch origin main
           git rebase origin/main
-          git push
+          for attempt in 1 2 3 4 5; do
+            git push && exit 0
+            git fetch origin main
+            git rebase origin/main
+            sleep 2
+          done
+          exit 1
