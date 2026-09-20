@@ -596,6 +596,11 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   const FIRST_PAIR_KEEP=10;
   const SECOND_PAIR_KEEP=10;
 
+  // The final recommendation must beat the no-transfer baseline on the same
+  // seven-GW XI-only scoring basis. A funding move has no value merely because
+  // it releases cash: the resulting squad must earn more points after all
+  // transfers and hits are accounted for.
+
   type State={
     squad:any[],bank:number,ft:number,total:number,steps:any[],usedChips:string[],
     recentMoves:{gw:number,outId:number,inId:number}[]
@@ -724,6 +729,12 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           const gain=scoreState(sq,fixtures,gw,null);
           const hit=Math.max(0,2-st.ft)*4;
           const combinedFuture=squadHorizonDelta(st.squad,sq,fixtures,gw,Math.min(7,endGw-gw+1));
+          // Funding downgrades are allowed, but only when the COMPLETE resulting
+          // squad creates a real XI-scoring improvement over the current squad.
+          // This prevents reserve/bench downgrades from being treated as valuable
+          // simply because they release money for an unrelated move.
+          const hasFundingMove=a.cost<0||b.cost<0;
+          if(hasFundingMove&&combinedFuture<=Math.max(0.15,hit+0.15))continue;
           pairStates.push({a,b,sq,totalCost,gain,hit,combinedFuture});
         }
       }
@@ -817,10 +828,32 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     console.log("[decision-plan] completed GW",gw,"frontier",states.length);
   }
 
-  // At the end, choose by actual cumulative points. No heuristic continuation
-  // value is included because there are no future gameweeks left.
+  // At the end, choose by actual cumulative XI points. No heuristic continuation
+  // value is included because there are no future gameweeks left. The no-transfer
+  // path is a hard baseline: a transfer strategy that does not beat Hold across
+  // the full horizon is not a recommendation, regardless of cash released.
   states.sort((a:any,b:any)=>b.total-a.total);
-  return states[0]?.steps||[];
+  const best=states[0];
+  const holdTotal=best?.steps?.length===endGw-startGw+1
+    ? best.steps.reduce((sum:number,step:any)=>sum+Number(step.projectedGain===0?0:0),0)
+    : 0;
+  // Recalculate the immutable Hold baseline directly so the guard cannot be
+  // affected by beam pruning or by the identity of the winning state.
+  let holdBaseline=0;
+  for(let g=startGw;g<=endGw;g++)holdBaseline+=scoreState(initial,fixtures,g,null).points;
+  if(!best||best.total<=holdBaseline+0.05){
+    let ft=getFT(history,startGw,entryHistory),total=0;
+    const holdSteps:any[]=[];
+    for(let g=startGw;g<=endGw;g++){
+      const base=scoreState(initial,fixtures,g,null);
+      const nextFt=Math.min(5,ft+1);
+      total+=base.points;
+      holdSteps.push({gw:g,action:"Hold",chip:null,bank:Number(bank||0),ft:ft,formation:base.formation,cap:base.cap,projectedGain:0});
+      ft=nextFt;
+    }
+    return holdSteps;
+  }
+  return best.steps;
 }
 
 export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null,includeDecisionPlan=true,fastMode=false,planOnly=false){
