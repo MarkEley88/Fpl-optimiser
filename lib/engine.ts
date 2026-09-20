@@ -226,15 +226,14 @@ function buildXI(squad:any[],fixtures:any[],gw:number){
   return{xi:best,bestScore,formation};
 }
 function captainPlan(xi:any[],fixtures:any[],gw:number){
-  const ranked=[...xi].map(x=>({...x,score:weekScore(x.player,fixtures,gw),ceiling:x.player.ceiling||0}))
-    .sort((a,b)=>{
-      const diff=b.score-a.score;
-      // Expected points are the primary captain objective. Ceiling is only a
-      // tie-break when two options are effectively level; otherwise a high
-      // variance player cannot displace a materially higher expected scorer.
-      return Math.abs(diff)>.15?diff:(b.score+b.ceiling*.03)-(a.score+a.ceiling*.03);
-    });
-  return{captain:ranked[0]?.player||null,vice:ranked[1]?.player||null,candidates:ranked.slice(0,5).map(x=>({name:x.player.name,id:x.player.id,score:x.score,ceiling:x.ceiling}))};
+  // Captain must always be the starting XI player with the highest predicted
+  // points for this specific Gameweek. Do not use price, ceiling, form or
+  // subjective upside as a tie-break: the prediction itself determines the
+  // captain. This keeps the captain recommendation consistent with the
+  // optimiser's expected-points objective.
+  const ranked=[...xi].map(x=>({...x,score:weekScore(x.player,fixtures,gw)}))
+    .sort((a,b)=>b.score-a.score);
+  return{captain:ranked[0]?.player||null,vice:ranked[1]?.player||null,candidates:ranked.slice(0,5).map(x=>({name:x.player.name,id:x.player.id,score:x.score}))};
 }
 function clubCount(squad:any[],team:number){return squad.filter(x=>x.player.team===team).length}
 function validSquad(squad:any[]){return squad.length===15&&squad.filter(x=>x.player.position===1).length===2&&squad.filter(x=>x.player.position===2).length===5&&squad.filter(x=>x.player.position===3).length===5&&squad.filter(x=>x.player.position===4).length===3&&[...new Set(squad.map(x=>x.player.team))].every(t=>clubCount(squad,Number(t))<=3)}
@@ -870,7 +869,11 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
   const scored=norm.map(x=>({...x,historicalScore:historicalModelScore(x)}));
   const byId=new Map(scored.map(p=>[p.id,p]));
   pool=scored.map((p:any)=>({...p,projected:Number(weekScore(p,fixtures,gw).toFixed(2))}));
-  const current=picks.map(x=>{const player=byId.get(x.element);return{...x,player,purchasePrice:Number(x.purchase_price??x.purchasePrice??x.now_cost??player?.price??0)/10,sellPrice:Number(x.selling_price??x.now_cost??player?.price??0)/10}}).filter(x=>x.player);
+  const current=picks.map(x=>{
+    const player=byId.get(x.element);
+    const currentPlayer=player?{...player,projected:Number(weekScore(player,fixtures,gw).toFixed(2))}:player;
+    return{...x,player:currentPlayer,purchasePrice:Number(x.purchase_price??x.purchasePrice??x.now_cost??currentPlayer?.price??0)/10,sellPrice:Number(x.selling_price??x.now_cost??currentPlayer?.price??0)/10}
+  }).filter(x=>x.player);
   const built=buildXI(current,fixtures,gw),xi=built.xi,xiIds=new Set(xi.map(x=>x.player.id));
   const currentXI=current.filter((x:any)=>Number((x as any).position||0)>=1&&Number((x as any).position||0)<=11);
   const currentBench=current.filter((x:any)=>Number((x as any).position||0)>=12&&Number((x as any).position||0)<=15);
@@ -887,7 +890,7 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
     transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),substitutionPlan:substitutionPlan(current,fixtures,gw),currentStartingXI:currentXI.sort((a:any,b:any)=>Number(a.position)-Number(b.position)).map((x:any)=>x.player.name),currentBench:currentBench.sort((a:any,b:any)=>Number(a.position)-Number(b.position)).map((x:any)=>x.player.name),
     bank:Number(bank||0),freeTransfers:getFT(history,gw,entryHistory),currentGameweek:gw,
     rules:{squadSize:15,maxPlayersPerClub:3,formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",transferPositionLock:false,budgetConstraint:true,transferHit:4,maxFreeTransfers:5,sellingValueUsed:true,freeHitCannotBeConsecutive:true,twoChipSets:true,oneChipPerGameweek:true,chipResetGameweek:20},
-    model:{name:"FPL Decision Engine v1.0",method:"broader FPL statistical model + live per-fixture projections + 7-GW transfer timing search + chip opportunity-cost layer",horizon:7,transferHitPoints:4,principles:["Optimise cumulative future gameweek points, not just the next GW","Evaluate every candidate's upcoming fixture run and transfer timing","Compare transfer cost, free-transfer state and future points together","Avoid hits unless the projected future gain exceeds the 4-point cost","Preserve information value and avoid reactive price chasing","Captain the highest expected-value option; use ceiling only as a tie-break","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
+    model:{name:"FPL Decision Engine v1.0",method:"broader FPL statistical model + live per-fixture projections + 7-GW transfer timing search + chip opportunity-cost layer",horizon:7,transferHitPoints:4,principles:["Optimise cumulative future gameweek points, not just the next GW","Evaluate every candidate's upcoming fixture run and transfer timing","Compare transfer cost, free-transfer state and future points together","Avoid hits unless the projected future gain exceeds the 4-point cost","Preserve information value and avoid reactive price chasing","Captain the starting-XI player with the highest predicted points for that Gameweek","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
     chips:{remaining,suggestions:chips,used:usedChips},
     projectedGameweek:{points:Number(scoreState(current,fixtures,gw,null).points.toFixed(2)),captain:captainPlan(xi,fixtures,gw).captain,vice:captainPlan(xi,fixtures,gw).vice,formation:built.formation},
     decisionPlan:includeDecisionPlan?buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,entryHistory):[],
