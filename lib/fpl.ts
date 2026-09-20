@@ -1,22 +1,40 @@
-const CACHE_URL="https://raw.githubusercontent.com/MarkEley88/Fpl-optimiser/main/data/fpl-cache.json";
+const BASE_URL="https://fantasy.premierleague.com/api";
+const DEFAULT_HEADERS={
+  "User-Agent":"Mozilla/5.0 FPL Optimiser",
+  "Accept":"application/json",
+  "Referer":"https://fantasy.premierleague.com/"
+};
 
 type Cache=Record<string,any>;
 
 let cached:Cache|null=null;
 let cachedAt=0;
+const CACHE_TTL_MS=30000;
+
+async function getLive(path:string):Promise<any>{
+  const r=await fetch(BASE_URL+path,{cache:"no-store",headers:DEFAULT_HEADERS});
+  if(!r.ok)throw Error("FPL API "+r.status+" for "+path);
+  return r.json();
+}
 
 async function getCache():Promise<Cache>{
   const now=Date.now();
-  if(cached && now-cachedAt<15000)return cached;
-  const r=await fetch(CACHE_URL+"?t="+now,{cache:"no-store"});
-  if(!r.ok)throw Error("FPL cache "+r.status);
-  const data=await r.json();
-  if(!data.bootstrap || !data.fixtures || !data.team || !data.history || !data.picks){
-    throw Error("FPL live cache unavailable");
-  }
-  cached=data;
+  if(cached && now-cachedAt<CACHE_TTL_MS)return cached;
+
+  const id=process.env.FPL_TEAM_ID||"1187241";
+  const [bootstrap,fixtures,team,history]=await Promise.all([
+    getLive("/bootstrap-static/"),
+    getLive("/fixtures/"),
+    getLive("/entry/"+id+"/"),
+    getLive("/entry/"+id+"/history/")
+  ]);
+
+  const gw=Number(team?.current_event||history?.current?.at(-1)?.event||1);
+  const picks=await getLive("/entry/"+id+"/event/"+gw+"/picks/");
+
+  cached={generatedAt:new Date().toISOString(),bootstrap,fixtures,team,history,picks};
   cachedAt=now;
-  return data;
+  return cached;
 }
 
 export async function fpl(path:string){
