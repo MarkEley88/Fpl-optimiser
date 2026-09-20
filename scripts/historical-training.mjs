@@ -293,3 +293,5 @@ main().catch(e=>{console.error(e);process.exit(1)});
 
 // Five-season model includes a player-history index for neutral missing-history handling.
 // Training trigger: regenerate the committed historical model after workflow race-condition fix.
+
+// Force workflow run after hardened push handling.
