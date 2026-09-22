@@ -1,4 +1,5 @@
 import {HISTORICAL_MODEL} from "./historical-model";
+import {CURRENT_SEASON_MODEL} from "./current-season-model";
 export type Player=any;
 
 const clamp=(n:number,a=0,b=1)=>Math.max(a,Math.min(b,n));
@@ -71,6 +72,11 @@ function historicalModelScore(p:any){
   const historicalAvailable=!Array.isArray(ids)||ids.includes(Number(p.id));
   // Missing historical player data is neutral: no boost and no penalty.
   if(!historicalAvailable)return 0;
+  return Number(w.bias||0)+Object.entries(w).filter(([k])=>k!=="bias").reduce((s,[k,v])=>s+Number(v)*Number(f[k]||0),0);
+}
+function currentSeasonModelScore(p:any){
+  const f=p.modelZ||{};
+  const w=CURRENT_SEASON_MODEL.weights;
   return Number(w.bias||0)+Object.entries(w).filter(([k])=>k!=="bias").reduce((s,[k,v])=>s+Number(v)*Number(f[k]||0),0);
 }
 function rawPlayer(p:any){
@@ -887,7 +893,15 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
   // function is not dependent on dozens of direct FPL API calls or their
   // rate limits. Bootstrap data still supplies the live season metrics.
   const norm=normaliseModelPool(pool.map(x=>({...x,...x.modelFeatures})));
-  const scored=norm.map(x=>({...x,historicalScore:historicalModelScore(x)}));
+  const scored=norm.map(x=>{
+    const historical=historicalModelScore(x);
+    const currentSeason=currentSeasonModelScore(x);
+    // Current-season learning is an adaptive correction, not a replacement for
+    // the five-season model. This prevents a handful of early GWs from
+    // overpowering the trained baseline while still letting the engine learn.
+    const adjustment=clamp(currentSeason-historical,-1.5,1.5)*0.35;
+    return{...x,historicalScore:Number((historical+adjustment).toFixed(4)),currentSeasonScore:Number(currentSeason.toFixed(4))};
+  });
   const byId=new Map(scored.map(p=>[p.id,p]));
   pool=scored.map((p:any)=>({...p,projected:Number(weekScore(p,fixtures,gw).toFixed(2))}));
   const current=picks.map(x=>{
