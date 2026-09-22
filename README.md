@@ -31,3 +31,5 @@ The app only uses the public read endpoints; it does not ask for your FPL passwo
 The FPL endpoints are public endpoints used by the FPL website but are not a formally documented developer API. Build defensively because response shapes can change.
 
 Official-news ingestion is deliberately source-restricted: it does not treat Reddit or generic FPL blogs as official club evidence. Those can be added later as lower-confidence supporting signals.
+
+<!-- Deployment sync: keep Vercel aligned with the latest main branch. -->
