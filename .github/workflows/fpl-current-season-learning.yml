@@ -1,0 +1,42 @@
+name: FPL current-season incremental learning
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 5 * * *"
+  push:
+    paths:
+      - "scripts/current-season-learning.mjs"
+      - "lib/current-season-model.ts"
+
+permissions:
+  contents: write
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Learn only newly completed Gameweeks
+        run: node scripts/current-season-learning.mjs
+      - name: Commit incremental model if changed
+        run: |
+          git config user.name "fpl-current-season-bot"
+          git config user.email "actions@github.com"
+          git add lib/current-season-model.ts
+          if git diff --cached --quiet; then
+            echo "No new Gameweek to learn."
+            exit 0
+          fi
+          git commit -m "Update current-season model incrementally"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git rebase origin/main
+            if git push; then exit 0; fi
+            sleep 2
+          done
+          exit 1
