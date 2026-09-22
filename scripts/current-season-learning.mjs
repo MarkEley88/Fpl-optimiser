@@ -16,6 +16,7 @@ const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function csv(t){const rows=[];let r=[],c="",q=false;for(let i=0;i<t.length;i++){const ch=t[i],nx=t[i+1];if(q){if(ch==='"'&&nx==='"'){c+='"';i++}else if(ch==='"')q=false;else c+=ch}else if(ch==='"')q=true;else if(ch===','){r.push(c);c=""}else if(ch==='\\n'){r.push(c.replace(/\\r$/,""));rows.push(r);r=[];c=""}else c+=ch}if(c||r.length){r.push(c);rows.push(r)}const h=rows.shift()||[];return rows.filter(x=>x.length===h.length).map(x=>Object.fromEntries(h.map((k,i)=>[k,x[i]])));}
 async function get(u){const r=await fetch(u);if(!r.ok)throw Error(r.status+" "+u);return r.text()}
+async function getJson(u){const r=await fetch(u);if(!r.ok)throw Error(r.status+" "+u);return r.json()}
 function features(history){
  const last3=history.slice(-3),last5=history.slice(-5),mins=Math.max(1,history.reduce((s,x)=>s+x.minutes,0)),n=Math.max(1,history.length);
  const per90=k=>history.reduce((s,x)=>s+num(x[k]),0)/(mins/90);
@@ -41,7 +42,9 @@ async function main(){
  const m=loadModel();
  const raw=csv(await get(ROOT+"/"+SEASON+"/gws/merged_gw.csv"));
  const rows=raw.map(r=>({id:num(r.element),gw:num(r.GW||r.round||r.event),points:num(r.total_points),minutes:num(r.minutes),starts:num(r.starts),xg:num(r.expected_goals),xa:num(r.expected_assists),xgi:num(r.expected_goal_involvements),dc:num(r.defensive_contribution),bonus:num(r.bonus),bps:num(r.bps),ict:num(r.ict_index),threat:num(r.threat),creativity:num(r.creativity),influence:num(r.influence),goals:num(r.goals_scored),assists:num(r.assists),saves:num(r.saves),clean_sheet:num(r.clean_sheets)})).filter(r=>r.id&&r.gw);
- const maxCompleted=Math.max(0,...rows.map(r=>r.gw));
+ const bootstrap=await getJson("https://fantasy.premierleague.com/api/bootstrap-static/");
+ const maxCompleted=Math.max(0,...(bootstrap.events||[]).filter(e=>e.finished).map(e=>Number(e.id)||0));
+ console.log("Latest completed official GW:",maxCompleted);
  if(maxCompleted<=m.lastLearnedGW){console.log("No new completed Gameweek. Model remains at GW"+m.lastLearnedGW);return;}
  const byId=new Map();
  for(const r of rows){if(!byId.has(r.id))byId.set(r.id,[]);byId.get(r.id).push(r)}
