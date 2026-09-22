@@ -1,8 +1,13 @@
 const BASE_URL="https://fantasy.premierleague.com/api";
 const DEFAULT_HEADERS={
-  "User-Agent":"Mozilla/5.0 FPL Optimiser",
-  "Accept":"application/json",
-  "Referer":"https://fantasy.premierleague.com/"
+  "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36",
+  "Accept":"application/json, text/plain, */*",
+  "Accept-Language":"en-GB,en;q=0.9",
+  "Referer":"https://fantasy.premierleague.com/",
+  "Origin":"https://fantasy.premierleague.com",
+  "Sec-Fetch-Dest":"empty",
+  "Sec-Fetch-Mode":"cors",
+  "Sec-Fetch-Site":"same-origin"
 };
 
 type Cache=Record<string,any>;
@@ -12,9 +17,25 @@ let cachedAt=0;
 const CACHE_TTL_MS=30000;
 
 async function getLive(path:string):Promise<any>{
-  const r=await fetch(BASE_URL+path,{cache:"no-store",headers:DEFAULT_HEADERS});
-  if(!r.ok)throw Error("FPL API "+r.status+" for "+path);
-  return r.json();
+  let lastStatus=0;
+  let lastBody="";
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      const r=await fetch(BASE_URL+path,{
+        cache:"no-store",
+        headers:DEFAULT_HEADERS,
+        signal:AbortSignal.timeout(15000)
+      });
+      if(r.ok)return r.json();
+      lastStatus=r.status;
+      lastBody=(await r.text()).slice(0,200);
+      if(![403,429,500,502,503,504].includes(r.status))break;
+    }catch(e){
+      lastBody=String(e);
+    }
+    if(attempt<2)await new Promise(resolve=>setTimeout(resolve,750*(attempt+1)));
+  }
+  throw Error("FPL API "+lastStatus+" for "+path+(lastBody?": "+lastBody:""));
 }
 
 async function getCache():Promise<Cache>{
