@@ -27,8 +27,10 @@ function normalise(rows){
 }
 function loadModel(){
  const text=fs.readFileSync(MODEL_FILE,"utf8");
- const json=text.match(/export const CURRENT_SEASON_MODEL=(\\{[\\s\\S]*?\\}) as const;/)?.[1];
- if(!json)throw Error("Unable to parse "+MODEL_FILE);
+ const start=text.indexOf("export const CURRENT_SEASON_MODEL=");
+ const end=text.lastIndexOf(" as const;");
+ if(start<0||end<0)throw Error("Unable to parse "+MODEL_FILE);
+ const json=text.slice(start+"export const CURRENT_SEASON_MODEL=".length,end).trim();
  return JSON.parse(json);
 }
 function saveModel(m){
