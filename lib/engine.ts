@@ -48,6 +48,10 @@ function modelFeatures(p:any,currentGw=1){
   };
 }
 function normaliseModelPool(rows:any[]){
+  // Keep the live player fields untouched. The previous implementation
+  // overwrote operational fields such as startRate/minutesRate with z-scores,
+  // which then fed back into the starting-probability calculation.
+  // Store the training-only z-scores separately.
   const keys=["form3","form5","p90","xgi90","xg90","xa90","dc90","bonus90","bps90","ict90","threat90","creativity90","influence90","goals90","assists90","saves90","cleanSheetRate","startRate","minutesRate","recentMinutesRate"];
   const stats:any={};
   for(const k of keys){
@@ -55,10 +59,13 @@ function normaliseModelPool(rows:any[]){
     const sd=Math.sqrt(vals.reduce((a,v)=>a+(v-mean)**2,0)/Math.max(1,vals.length))||1;
     stats[k]=[mean,sd];
   }
-  return rows.map(x=>({...x,...Object.fromEntries(keys.map(k=>[k,(Number(x[k]||0)-stats[k][0])/stats[k][1]]))}));
+  return rows.map(x=>({
+    ...x,
+    modelZ:Object.fromEntries(keys.map(k=>[k,(Number(x[k]||0)-stats[k][0])/stats[k][1]]))
+  }));
 }
 function historicalModelScore(p:any){
-  const f=p.modelFeatures||{};
+  const f=p.modelZ||{};
   const w=HISTORICAL_MODEL.weights;
   const ids=(HISTORICAL_MODEL as any).historicalPlayerIds;
   const historicalAvailable=!Array.isArray(ids)||ids.includes(Number(p.id));
@@ -174,7 +181,13 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
     dc90:Number(rate(p.defensive_contribution,p.minutes).toFixed(2)),
     ceiling:Number((projection+(xgi90*2.2)+(Number(p.bonus||0)/Math.max(1,totalMinutes/90))*.4).toFixed(2)),
     status:p.status,chanceOfPlaying:p.chance_of_playing_next_round,news:p.news||"",
-    modelFeatures:modelFeatures(p,currentGw),historicalScore:0,raw:p
+    modelFeatures:modelFeatures(p,currentGw),
+    // Keep a current-season starting-rate signal separate from the training
+    // z-scores. FPL's bootstrap feed supplies cumulative starts and minutes.
+    recentStartRate:Number(p.starts||0)/Math.max(1,currentGw),
+    recentStartMinutes:78,
+    recentBenchMinutes:18,
+    historicalScore:0,raw:p
   };
 }
 const posName=(p:number)=>({1:"Goalkeeper",2:"Defender",3:"Midfielder",4:"Forward"} as any)[p]||"Unknown";
@@ -291,8 +304,13 @@ function applyTransfer(squad:any[],t:any){
     element:t.in.id,player:t.in,purchasePrice:t.in.price,sellPrice:t.in.price
   }];
 }
-function multiWeekDelta(out:any,inP:any,fixtures:any[],startGw:number,horizon=5){
-  let d=0;for(let g=startGw+1;g<=startGw+horizon;g++)d+=weekScore(inP,fixtures,g)-weekScore(out.player,fixtures,g);
+function multiWeekDelta(out:any,inP:any,fixtures:any[],startGw:number,horizon=7){
+  // startGw is the GW in which the transfer is made. Include that GW because
+  // the incoming player is available immediately; a transfer recommendation
+  // that starts scoring one week late systematically understates transfers.
+  let d=0;
+  const end=Math.min(38,startGw+horizon-1);
+  for(let g=startGw;g<=end;g++)d+=weekScore(inP,fixtures,g)-weekScore(out.player,fixtures,g);
   return d;
 }
 function makeCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],startGw:number,horizon=5){
@@ -416,6 +434,9 @@ function plannedSubstitutions(squad:any[],fixtures:any[],gw:number){
   return result;
 }
 function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number){
+  // Transfer ideas are evaluated from the current GW, not from GW+1.
+  // The strategic planner already passes gw-1 to multiWeekDelta where needed;
+  // this UI list should use the same seven-GW window.
   const all=candidates(squad,pool,bank,fixtures,gw,7);
   const baseValue=scoreState(squad,fixtures,gw,null).points;
   const rows=all.map(x=>{
