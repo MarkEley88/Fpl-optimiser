@@ -1,10 +1,14 @@
 name: Refresh FPL live cache
 
-# The optimiser now reads the live FPL API server-side with a short in-memory
-# cache. Keeping this workflow manual-only prevents five-minute cache commits
-# from triggering unnecessary application deployments.
+# Keep a persistent snapshot available to the Vercel app when the FPL API
+# temporarily blocks Vercel egress. GitHub Actions refreshes the snapshot;
+# Vercel reads it only when the live API fails.
 on:
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: write
@@ -29,28 +33,37 @@ jobs:
           }
 
           headers = {
-              "User-Agent": "Mozilla/5.0",
-              "Accept": "application/json",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+              "Accept": "application/json, text/plain, */*",
+              "Accept-Language": "en-GB,en;q=0.9",
               "Referer": "https://fantasy.premierleague.com/",
+              "Origin": "https://fantasy.premierleague.com",
           }
+
+          def get(path):
+              last = None
+              for attempt in range(3):
+                  try:
+                      req = urllib.request.Request(base + path, headers=headers)
+                      with urllib.request.urlopen(req, timeout=30) as r:
+                          return json.load(r)
+                  except Exception as e:
+                      last = e
+                      time.sleep(2 * (attempt + 1))
+              raise last
 
           out = {"generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
           for key, path in endpoints.items():
-              req = urllib.request.Request(base + path, headers=headers)
-              with urllib.request.urlopen(req, timeout=30) as r:
-                  out[key] = json.load(r)
+              out[key] = get(path)
 
           gw = out["team"].get("current_event") or (out["history"].get("current") or [{}])[-1].get("event") or 1
-          picks_path = f"/entry/{team_id}/event/{gw}/picks/"
-          req = urllib.request.Request(base + picks_path, headers=headers)
-          with urllib.request.urlopen(req, timeout=30) as r:
-              out["picks"] = json.load(r)
+          out["picks"] = get(f"/entry/{team_id}/event/{gw}/picks/")
 
           pathlib.Path("data").mkdir(exist_ok=True)
           pathlib.Path("data/fpl-cache.json").write_text(json.dumps(out, separators=(",", ":")))
           print("Cached GW", gw, "at", out["generatedAt"])
           PY
-      - name: Commit manual cache snapshot
+      - name: Commit cache snapshot
         run: |
           git config user.name "MarkEley88"
           git config user.email "329544909+MarkEley88@users.noreply.github.com"
@@ -59,5 +72,5 @@ jobs:
             echo "Cache unchanged; nothing to commit."
             exit 0
           fi
-          git commit -m "chore: manual FPL cache snapshot"
+          git commit -m "chore: refresh FPL cache snapshot"
           git push origin HEAD:main
