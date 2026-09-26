@@ -26,5 +26,5 @@ export const CURRENT_SEASON_MODEL={
     "recentMinutesRate": 0,
     "bias": -0.0814561559506406
   },
-  "updatedAt": "2026-09-26T09:45:08.259Z"
+  "updatedAt": "2026-09-26T09:46:32.483Z"
 } as const;
