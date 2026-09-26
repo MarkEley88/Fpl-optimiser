@@ -709,7 +709,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
 
   const fixedFuture=(squad:any[],fromGw:number)=>{
     let v=0;
-    for(let g=fromGw;g<=endGw;g++)v+=scoreState(squad,fixtures,g,null).points;
+    for(let g=fromGw;g<=endGw;g++)v+=scoreState(squad,fixtures,g,null,false).points;
     return v;
   };
 
@@ -866,7 +866,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         if(chip==="wildcard"){
           const totalBudget=Number((st.bank+st.squad.reduce((s,x)=>s+sellPrice(x),0)).toFixed(1));
           const rebuilt=improveSquad(st.squad,pool,fixtures,gw,totalBudget);
-          const rg=scoreState(rebuilt.squad,fixtures,gw,null);
+          const rg=scoreState(rebuilt.squad,fixtures,gw,null,false);
           if(rg.points>base.points){
             next.push({
               ...st,squad:rebuilt.squad,bank:rebuilt.bank,ft:earned,recentMoves:[],
@@ -883,7 +883,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           const totalBudget=Number((st.bank+st.squad.reduce((s,x)=>s+sellPrice(x),0)).toFixed(1));
           const best=bestTemporarySquad(st.squad,pool,fixtures,gw,totalBudget);
           const tmp=best.map((p:any)=>({player:p}));
-          const fg=scoreState(tmp,fixtures,gw,null);
+          const fg=scoreState(tmp,fixtures,gw,null,false);
           if(fg.points>base.points){
             next.push({
               ...st,ft:earned,total:st.total+fg.points,
