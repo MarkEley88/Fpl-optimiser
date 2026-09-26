@@ -1,5 +1,6 @@
 import {HISTORICAL_MODEL} from "./historical-model";
 import {CURRENT_SEASON_MODEL} from "./current-season-model";
+import {buildExactTransferPlan as buildExactTransferPlanIsolated} from "./exact-transfer";
 import {exactSearch} from "./exact-search";
 export type Player=any;
 
