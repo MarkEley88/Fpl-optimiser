@@ -885,7 +885,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     // Rank once per state. The continuation value for a funding state was
     // calculated when that state was created; do not recursively search future
     // transfers during sorting.
-    next.sort((a:any,b:any)=>stateRank(b,gw+1)-stateRank(a,gw+1));
+    next.sort((a:any,b:any)=>(b.total+fixedFuture(b.squad,gw+1))-(a.total+fixedFuture(a.squad,gw+1)));
     states=next.slice(0,BEAM);
     console.log("[decision-plan] completed GW",gw,"frontier",states.length);
   }
