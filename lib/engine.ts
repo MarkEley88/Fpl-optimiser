@@ -105,7 +105,7 @@ function startProbability(p:any){
   // Bootstrap does not expose a reliable appearances field. Derive a conservative
   // appearance proxy from starts/minutes rather than treating every available
   // player as an automatic starter.
-  const appearanceProxy=Math.max(starts, Math.ceil(minutes/60));
+  const appearanceProxy=Math.max(starts, Math.ceil(minutes/90));
   const seasonRate=appearanceProxy>0?clamp(starts/appearanceProxy):0;
   const minutesRate=appearanceProxy>0?clamp(minutes/(90*appearanceProxy)):0;
 
@@ -416,29 +416,32 @@ function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],g
   return rows.sort((a,b)=>b.strategicDelta-a.strategicDelta);
 }
 function substitutionPlan(squad:any[],fixtures:any[],gw:number){
-  const built=buildXI(squad,fixtures,gw);
-  const xi=built.xi;
-  const xiIds=new Set(xi.map((x:any)=>x.player.id));
-  const bench=squad.filter((x:any)=>!xiIds.has(x.player.id))
-    .sort((a:any,b:any)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
+  // Compare the model's recommendation with the XI actually saved in FPL.
+  // The previous implementation compared the model-selected XI with its own
+  // bench, which can never identify a change the manager should make.
+  const savedXI=squad.filter((x:any)=>Number(x.position)>=1&&Number(x.position)<=11);
+  const savedBench=squad.filter((x:any)=>Number(x.position)>=12&&Number(x.position)<=15);
   const rows:any[]=[];
-  for(const b of bench)for(const st of xi){
-    if(Number(b.player.position)===1&&Number(st.player.position)!==1)continue;
-    const trial=xi.map((x:any)=>x.player.id===st.player.id?{...x,player:b.player}:x);
-    const counts=[1,2,3,4].map(pos=>trial.filter((x:any)=>Number(x.player.position)===pos).length);
-    const legal=counts[0]===1&&counts[1]>=3&&counts[1]<=5&&counts[2]>=2&&counts[2]<=5&&counts[3]>=1&&counts[3]<=3;
-    if(!legal)continue;
-    const before=weekScore(st.player,fixtures,gw);
-    const after=weekScore(b.player,fixtures,gw);
-    const gain=after-before;
-    if(gain<=.15)continue;
-    rows.push({
-      bench:b.player.name,starter:st.player.name,
-      benchProjected:Number(after.toFixed(2)),starterProjected:Number(before.toFixed(2)),
-      benchStart:b.player.startProbability,starterStart:st.player.startProbability,
-      gain:Number(gain.toFixed(2)),formation:"1-"+counts[1]+"-"+counts[2]+"-"+counts[3],
-      reason:"Legal change from the model-selected XI; the replacement has a higher projected score and the resulting formation remains valid."
-    });
+  for(const b of savedBench){
+    for(const st of savedXI){
+      if(Number(b.player.position)===1&&Number(st.player.position)!==1)continue;
+      if(Number(b.player.position)!==Number(st.player.position))continue;
+      const trial=savedXI.map((x:any)=>x.player.id===st.player.id?{...x,player:b.player}:x);
+      const counts=[1,2,3,4].map(pos=>trial.filter((x:any)=>Number(x.player.position)===pos).length);
+      const legal=counts[0]===1&&counts[1]>=3&&counts[1]<=5&&counts[2]>=2&&counts[2]<=5&&counts[3]>=1&&counts[3]<=3;
+      if(!legal)continue;
+      const before=weekScore(st.player,fixtures,gw);
+      const after=weekScore(b.player,fixtures,gw);
+      const gain=after-before;
+      if(gain<=.15)continue;
+      rows.push({
+        bench:b.player.name,starter:st.player.name,
+        benchProjected:Number(after.toFixed(2)),starterProjected:Number(before.toFixed(2)),
+        benchStart:b.player.startProbability,starterStart:st.player.startProbability,
+        gain:Number(gain.toFixed(2)),formation:"1-"+counts[1]+"-"+counts[2]+"-"+counts[3],
+        reason:"Your saved XI can be improved: this bench player has the higher model projection and the resulting formation remains legal."
+      });
+    }
   }
   return rows.sort((a,b)=>b.gain-a.gain).slice(0,5);
 }
