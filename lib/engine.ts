@@ -951,8 +951,9 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
   const currentBench=current.filter((x:any)=>Number((x as any).position||0)>=12&&Number((x as any).position||0)<=15);
 
   const bench=current.filter(x=>!xiIds.has(x.player.id)).sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
+  const planDiagnostics=decisionPlanDiagnostics(current,pool,fixtures,gw,Number(bank||0),getFT(history,gw,entryHistory));
   if(planOnly){
-    return {pool,current,decisionPlan:buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,entryHistory)};
+    return {pool,current,decisionPlan:buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,entryHistory),decisionPlanDiagnostics:planDiagnostics};
   }
   const starters=[...xi].sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
   const remaining=remainingChips(history,gw),usedChips=history?.chips||[];
@@ -966,5 +967,6 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
     chips:{remaining,suggestions:chips,used:usedChips},
     projectedGameweek:{points:Number(scoreState(current,fixtures,gw,null).points.toFixed(2)),captain:captainPlan(xi,fixtures,gw).captain,vice:captainPlan(xi,fixtures,gw).vice,formation:built.formation},
     decisionPlan:includeDecisionPlan?buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,entryHistory):[],
+    decisionPlanDiagnostics:planDiagnostics,
   };
 }
