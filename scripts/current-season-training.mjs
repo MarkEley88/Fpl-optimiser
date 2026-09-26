@@ -23,7 +23,11 @@ function parseModel(){
   const text=fs.readFileSync(MODEL_PATH,"utf8");
   const m=text.match(/export const CURRENT_SEASON_MODEL=(.*) as const;/s);
   if(!m)throw Error("Unable to parse current-season model");
-  return JSON.parse(m[1]);
+  // The model is stored as a TypeScript object with unquoted property names.
+  // Quote those keys before parsing so the learner can read the persisted state
+  // without relying on eval/new Function.
+  const json=m[1].replace(/([{,]\\s*)([A-Za-z_$][\\w$]*)\\s*:/g,"$1\\\"$2\\\":");
+  return JSON.parse(json);
 }
 function features(rows){
   const mins=Math.max(1,rows.reduce((s,r)=>s+num(r.minutes),0)),n=Math.max(1,rows.length);
