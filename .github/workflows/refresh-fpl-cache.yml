@@ -1,14 +1,11 @@
 name: Refresh FPL live cache
 
-# Keep a persistent snapshot available to the Vercel app when the FPL API
-# temporarily blocks Vercel egress. GitHub Actions refreshes the snapshot;
-# Vercel reads it only when the live API fails.
+# Refresh the fallback snapshot without creating frequent Vercel deployments.
+# The snapshot is only committed when the current gameweek changes.
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "17 */6 * * *"
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: write
@@ -18,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Fetch live FPL data
         run: |
           python - <<'PY'
@@ -25,6 +23,7 @@ jobs:
 
           base = "https://fantasy.premierleague.com/api"
           team_id = "1187241"
+
           endpoints = {
               "bootstrap": "/bootstrap-static/",
               "fixtures": "/fixtures/",
@@ -53,24 +52,49 @@ jobs:
               raise last
 
           out = {"generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
           for key, path in endpoints.items():
               out[key] = get(path)
 
-          gw = out["team"].get("current_event") or (out["history"].get("current") or [{}])[-1].get("event") or 1
+          gw = (
+              out["team"].get("current_event")
+              or (out["history"].get("current") or [{}])[-1].get("event")
+              or 1
+          )
+
           out["picks"] = get(f"/entry/{team_id}/event/{gw}/picks/")
 
-          pathlib.Path("data").mkdir(exist_ok=True)
-          pathlib.Path("data/fpl-cache.json").write_text(json.dumps(out, separators=(",", ":")))
-          print("Cached GW", gw, "at", out["generatedAt"])
+          path = pathlib.Path("data/fpl-cache.json")
+          old_gw = None
+
+          if path.exists():
+              try:
+                  old = json.loads(path.read_text())
+                  old_gw = (
+                      old.get("team", {}).get("current_event")
+                      or (old.get("history", {}).get("current") or [{}])[-1].get("event")
+                  )
+              except Exception:
+                  pass
+
+          if old_gw == gw:
+              print(f"Cache already represents GW {gw}; no Git commit required.")
+              raise SystemExit(0)
+
+          path.parent.mkdir(exist_ok=True)
+          path.write_text(json.dumps(out, separators=(",", ":")))
+          print(f"Updated fallback cache from GW {old_gw} to GW {gw} at {out['generatedAt']}")
           PY
-      - name: Commit cache snapshot
+
+      - name: Commit only when gameweek changes
         run: |
-          git config user.name "MarkEley88"
-          git config user.email "329544909+MarkEley88@users.noreply.github.com"
-          git add data/fpl-cache.json
-          if git diff --cached --quiet; then
-            echo "Cache unchanged; nothing to commit."
+          if git diff --quiet -- data/fpl-cache.json; then
+            echo "No cache change; no deployment will be triggered."
             exit 0
           fi
-          git commit -m "chore: refresh FPL cache snapshot"
+
+          git config user.name "fpl-optimiser-bot"
+          git config user.email "fpl-optimiser-bot@users.noreply.github.com"
+          git add data/fpl-cache.json
+          git commit -m "chore: refresh FPL cache for new gameweek"
           git push origin HEAD:main
