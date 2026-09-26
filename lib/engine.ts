@@ -495,10 +495,13 @@ function decisionPlanDiagnostics(squad:any[],pool:any[],fixtures:any[],gw:number
     if(arr.length<8)arr.push(x);
     byOutgoing.set(id,arr);
   }
+  // The full legal universe is already screened by makeCandidates. For
+  // diagnostics, exact-check the strongest 16 only; otherwise the audit itself
+  // becomes a second optimiser and can consume the serverless time budget.
   const diagnosticPool=[...new Map([
-    ...all.slice(0,30),
+    ...all.slice(0,16),
     ...Array.from(byOutgoing.values()).flat()
-  ].map((x:any)=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
+  ].map((x:any)=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()].slice(0,40);
   const rows=diagnosticPool.map((x:any)=>{
     const result=applyTransfer(squad,x);
     const delta=squadHorizonDelta(squad,result,fixtures,gw,horizon);
@@ -811,7 +814,12 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       // 2) SINGLE TRANSFERS
       // Use the whole legal/affordable single-transfer universe. There is no
       // arbitrary top-N candidate cut here.
-      const singles=makeCandidates(st.squad,pool,st.bank,fixtures,gw,Math.min(7,endGw-gw+1))
+      const legalSingles=makeCandidates(st.squad,pool,st.bank,fixtures,gw,Math.min(7,endGw-gw+1));
+      // Screen the entire legal universe using the cheap, price-neutral player
+      // horizon score. Exact XI/formation scoring is then reserved for the
+      // strongest eight candidates. This preserves whole-universe discovery
+      // without running thousands of repeated seven-GW squad builds.
+      const singles=legalSingles.slice(0,8)
         .map((x:any)=>{
           const hit=st.ft>0?0:4;
           const result=applyTransfer(st.squad,x);
