@@ -783,11 +783,11 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         if(!expanded.length)break;
         // Cheap screening only. Every legal candidate was considered before
         // pruning; exact XI/formation scoring happens only on final paths.
-        expanded.sort((a,b)=>b.cheapDelta-b.cheapDelta);
+        expanded.sort((a,b)=>b.cheapDelta-a.cheapDelta);
         paths=[...paths,...expanded.slice(0,12)];
         // Keep the search tractable while retaining single, multi-transfer and
         // funding-first paths. The no-transfer path is already represented by HOLD.
-        paths=paths.sort((a,b)=>b.cheapDelta-b.cheapDelta).slice(0,24);
+        paths=paths.sort((a,b)=>b.cheapDelta-a.cheapDelta).slice(0,24);
       }
 
       const scoredPaths=paths.filter(p=>p.transfers.length).map(path=>{
