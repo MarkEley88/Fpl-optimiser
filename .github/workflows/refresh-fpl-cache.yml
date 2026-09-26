@@ -76,12 +76,11 @@ jobs:
                   pass
 
           if old_gw == gw:
-              print(f"Cache already represents GW {gw}; no Git commit required.")
-              raise SystemExit(0)
-
-          path.parent.mkdir(exist_ok=True)
-          path.write_text(json.dumps(out, separators=(",", ":")))
-          print(f"Updated fallback cache from GW {old_gw} to GW {gw} at {out['generatedAt']}")
+              print(f"Cache already represents GW {gw}; keeping existing snapshot.")
+          else:
+              path.parent.mkdir(exist_ok=True)
+              path.write_text(json.dumps(out, separators=(",", ":")))
+              print(f"Updated fallback cache from GW {old_gw} to GW {gw} at {out['generatedAt']}")
           PY
 
       - name: Incrementally learn completed current-season gameweeks
@@ -89,8 +88,8 @@ jobs:
 
       - name: Commit cache and current-season model
         run: |
-          if git diff --quiet -- data/fpl-cache.json; then
-            echo "No cache change; no deployment will be triggered."
+          if git diff --quiet -- data/fpl-cache.json lib/current-season-model.ts data/current-season-live.json; then
+            echo "No cache or model change; no deployment will be triggered."
             exit 0
           fi
 
