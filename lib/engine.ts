@@ -365,7 +365,7 @@ function squadHorizonDelta(squad:any[],candidate:any[],fixtures:any[],gw:number,
   let delta=0;
   const end=Math.min(38,gw+horizon-1);
   for(let g=gw;g<=end;g++){
-    delta+=scoreState(candidate,fixtures,g,null).points-scoreState(squad,fixtures,g,null).points;
+    delta+=scoreState(candidate,fixtures,g,null,false).points-scoreState(squad,fixtures,g,null,false).points;
   }
   return Number(delta.toFixed(2));
 }
@@ -466,11 +466,11 @@ function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:numb
   // The strategic planner already passes gw-1 to multiWeekDelta where needed;
   // this UI list should use the same seven-GW window.
   const all=candidates(squad,pool,bank,fixtures,gw,7);
-  const baseValue=scoreState(squad,fixtures,gw,null).points;
+  const baseValue=scoreState(squad,fixtures,gw,null,false).points;
   const rows=all.map(x=>{
     const result=applyTransfer(squad,x);
     const horizonDelta=squadHorizonDelta(squad,result,fixtures,gw,Math.min(7,39-gw));
-    const nextGwGain=scoreState(result,fixtures,gw,null).points-baseValue;
+    const nextGwGain=scoreState(result,fixtures,gw,null,false).points-baseValue;
     return {
       in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,
       delta:horizonDelta,nextGwGain:Number(nextGwGain.toFixed(2)),
@@ -481,7 +481,7 @@ function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:numb
   return rows.filter(x=>x.delta>0.35).sort((a,b)=>b.delta-a.delta).slice(0,8);
 }
 function decisionPlanDiagnostics(squad:any[],pool:any[],fixtures:any[],gw:number,bank:number,ft:number){
-  const baseline=scoreState(squad,fixtures,gw,null).points;
+  const baseline=scoreState(squad,fixtures,gw,null,false).points;
   const horizon=Math.min(7,39-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw,horizon);
   const hit=ft>0?0:4;
@@ -519,14 +519,18 @@ function decisionPlanDiagnostics(squad:any[],pool:any[],fixtures:any[],gw:number
     candidates:rows.slice(0,8)
   };
 }
-function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){
-  const key=String(gw)+":"+String(chip||"none")+":"+squad.map(x=>x.player.id).sort((a,b)=>a-b).join(",");
+function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null,includeCaptain=true){
+  // Player-transfer optimisation must be independent of captaincy. Captaincy is
+  // a separate weekly decision made after the XI is selected. The default remains
+  // true so the user-facing projected GW score continues to show the actual FPL
+  // captain multiplier.
+  const key=String(gw)+":"+String(chip||"none")+":"+String(includeCaptain)+":"+squad.map(x=>x.player.id).sort((a,b)=>a-b).join(",");
   const cached=SCORE_STATE_CACHE.get(key);
   if(cached)return cached;
   const built=buildXI(squad,fixtures,gw),cap=captainPlan(built.xi,fixtures,gw);
   let points=built.xi.reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
-  if(cap.captain)points+=weekScore(cap.captain,fixtures,gw);
-  if(chip==="3xc"&&cap.captain)points+=weekScore(cap.captain,fixtures,gw);
+  if(includeCaptain&&cap.captain)points+=weekScore(cap.captain,fixtures,gw);
+  if(chip==="3xc"&&includeCaptain&&cap.captain)points+=weekScore(cap.captain,fixtures,gw);
   if(chip==="bboost")points+=squad.filter(x=>!built.xi.some(y=>y.player.id===x.player.id)).reduce((s,x)=>s+weekScore(x.player,fixtures,gw),0);
   const result={points,xi:built.xi,formation:built.formation,cap};
   SCORE_STATE_CACHE.set(key,result);
@@ -721,7 +725,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     const next:any[]=[];
 
     for(const st of states){
-      const base=scoreState(st.squad,fixtures,gw,null);
+      const base=scoreState(st.squad,fixtures,gw,null,false);
       const earned=Math.min(5,st.ft+1);
       // Prevent rapid A→B→A churn caused by small weekly projection swings.
       // Genuine reversals remain possible when the footballing gain is material.
@@ -753,7 +757,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         const hit=c.hit;
         const sq=applyTransfer(st.squad,c);
         const nb=Number((st.bank-c.cost).toFixed(1));
-        const gain=scoreState(sq,fixtures,gw,null);
+        const gain=scoreState(sq,fixtures,gw,null,false);
         const nf=Math.min(5,Math.max(0,st.ft-1)+1);
         next.push({
           ...st,squad:sq,bank:nb,ft:nf,
@@ -813,7 +817,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           const sq=applyTransfer(afterA,b);
           if(!validSquad(sq))continue;
 
-          const gain=scoreState(sq,fixtures,gw,null);
+          const gain=scoreState(sq,fixtures,gw,null,false);
           const hit=Math.max(0,2-st.ft)*4;
           const combinedFuture=squadHorizonDelta(st.squad,sq,fixtures,gw,Math.min(7,endGw-gw+1));
           // Funding downgrades are allowed, but only when the COMPLETE resulting
@@ -927,7 +931,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   // Recalculate the immutable Hold baseline directly so the guard cannot be
   // affected by beam pruning or by the identity of the winning state.
   let holdBaseline=0;
-  for(let g=startGw;g<=endGw;g++)holdBaseline+=scoreState(initial,fixtures,g,null).points;
+  for(let g=startGw;g<=endGw;g++)holdBaseline+=scoreState(initial,fixtures,g,null,false).points;
   if(!best||best.total<=holdBaseline+0.05){
     let ft=getFT(history,startGw,entryHistory),total=0;
     const holdSteps:any[]=[];
