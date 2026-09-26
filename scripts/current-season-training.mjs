@@ -49,14 +49,16 @@ const historyByPlayer=new Map();
 const rows=Object.entries(live.gameweeks).map(([gw,data])=>({gw:Number(gw),data})).sort((a,b)=>a.gw-b.gw);
 let learned=model.lastLearnedGW||0;
 for(const {gw,data} of rows){
-  if(gw<=learned)continue;
+  // Always rebuild player history from cached completed GWs. Previously learned
+  // GWs still provide the feature history needed to learn a newly completed GW.
   const examples=[];
   for(const e of (data.elements||[])){
     const prior=historyByPlayer.get(Number(e.id))||[];
-    if(prior.length)examples.push({f:features(prior),actual:num(e.stats?.total_points)});
+    if(gw>learned&&prior.length)examples.push({f:features(prior),actual:num(e.stats?.total_points)});
     const s=e.stats||{};
     historyByPlayer.set(Number(e.id),prior.concat([{total_points:num(s.total_points),minutes:num(s.minutes),starts:num(s.starts),expected_goals:num(s.expected_goals),expected_assists:num(s.expected_assists),expected_goal_involvements:num(s.expected_goal_involvements),defensive_contribution:num(s.defensive_contribution)}]));
   }
+  if(gw<=learned)continue;
   if(examples.length){
     const norm=normalise(examples.map(x=>x.f)),lr=.00002,scale=.55;
     for(let i=0;i<examples.length;i++){
