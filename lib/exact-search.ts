@@ -23,7 +23,7 @@ export type ExactSearchResult<S, A = unknown> = {
   elapsedMs: number;
 };
 
-export type ExactSearchConfig<S extends {gw:number}, A = unknown> = {
+export type ExactSearchConfig<S, A = unknown> = {
   start: S;
   endGw: number;
   expand: (state: S) => ExactTransition<S, A>[];
@@ -41,22 +41,22 @@ export type ExactSearchConfig<S extends {gw:number}, A = unknown> = {
  * bound. With no nodeLimit and a valid upperBound, pruning cannot remove the
  * optimum. Equivalent states are memoised by their canonical state key.
  */
-export function exactSearch<S extends {gw:number}, A = unknown>(
-  config: ExactSearchConfig<S, A>
-): ExactSearchResult<S, A> {
+export function exactSearch(
+  config: ExactSearchConfig<any, any>
+): ExactSearchResult<any, any> {
   const started = Date.now();
   const keyOf = config.key;
   const bestSeen = new Map<string, number>();
 
   let bestScore = -Infinity;
-  let bestStates: S[] = [];
-  let bestActions: A[] = [];
+  let bestStates: any[] = [];
+  let bestActions: any[] = [];
   let nodes = 0;
   let memoHits = 0;
   let pruned = 0;
   let complete = true;
 
-  const dfs = (state: S, accumulated: number, states: S[], actions: A[]) => {
+  const dfs = (state: any, accumulated: number, states: any[], actions: any[]) => {
     nodes++;
     if (config.nodeLimit && nodes > config.nodeLimit) {
       complete = false;
