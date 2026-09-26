@@ -376,7 +376,7 @@ function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],g
   // squad-level evaluation only on that shortlist. Price remains affordability
   // only; it is never part of footballing value.
   const horizon=Math.min(7,39-gw);
-  const all=makeCandidates(squad,pool,bank,fixtures,gw-1,horizon);
+  const all=makeCandidates(squad,pool,bank,fixtures,gw,horizon);
   // Squad-aware shortlist: retain the strongest overall moves plus several
   // alternatives for every outgoing player and dedicated funding downgrades.
   // This prevents the exact XI evaluation from being dominated by one position
@@ -482,6 +482,18 @@ function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:numb
     };
   });
   return rows.filter(x=>x.delta>0.35).sort((a,b)=>b.delta-a.delta).slice(0,8);
+}
+function decisionPlanDiagnostics(squad:any[],pool:any[],fixtures:any[],gw:number,bank:number,ft:number){
+  const baseline=scoreState(squad,fixtures,gw,null).points;
+  const candidates=makeCandidates(squad,pool,bank,fixtures,gw,Math.min(7,39-gw));
+  const rows=candidates.slice(0,8).map((x:any)=>{
+    const result=applyTransfer(squad,x);
+    const horizon=Math.min(7,39-gw);
+    const delta=squadHorizonDelta(squad,result,fixtures,gw,horizon);
+    const hit=ft>0?0:4;
+    return {out:x.out.player.name,in:x.in.name,cost:x.cost,horizonDelta:delta,strategicDelta:Number((delta-hit).toFixed(2)),hit};
+  });
+  return {holdGW:Number(baseline.toFixed(2)),bestSingle:rows[0]||null,candidates:rows};
 }
 function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){
   const key=String(gw)+":"+String(chip||"none")+":"+squad.map(x=>x.player.id).sort((a,b)=>a-b).join(",");
