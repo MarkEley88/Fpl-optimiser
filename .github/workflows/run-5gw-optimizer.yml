@@ -1,0 +1,43 @@
+name: Run 5-GW optimiser worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      horizon:
+        description: "Decision horizon"
+        required: false
+        default: "5"
+        type: choice
+        options: ["5"]
+
+permissions:
+  contents: read
+
+jobs:
+  optimise:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FPL_TEAM_ID: 1187241
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run optimiser worker
+        run: npx --yes tsx scripts/run-5gw-worker.mjs
+
+      - name: Upload optimiser result
+        uses: actions/upload-artifact@v4
+        with:
+          name: fpl-5gw-optimiser-result
+          path: worker-output/latest-plan.json
+          retention-days: 7
