@@ -687,7 +687,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   // - Bank therefore has no standalone value.
   // - Captaincy is excluded from all transfer-path scoring.
   const endGw=Math.min(38,startGw+6);
-  const BEAM=24;
+  const BEAM=10;
 
   type State={
     squad:any[],bank:number,ft:number,total:number,steps:any[],usedChips:string[],
@@ -715,36 +715,43 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   // deliberately based on exact squad/XI scoring, not player price or captaincy.
   const bestFutureSingle=(squad:any[],futureBank:number,fromGw:number,futureFt:number)=>{
     let best:any=null;
+    const baseWeekly:any={};
+    for(let g=fromGw;g<=endGw;g++)baseWeekly[g]=scoreState(squad,fixtures,g,null,false).points;
+
     for(let g=fromGw;g<=endGw;g++){
       const candidates=makeCandidates(squad,pool,futureBank,fixtures,g,Math.min(7,endGw-g+1));
+      // First score the entire universe with the cheap player-level horizon
+      // delta. This is not a price ranking and contains no arbitrary top-N cut.
+      // Only the best candidate then needs the expensive exact squad/XI path
+      // calculation.
+      let bestCheap:any=null;
       for(const c of candidates){
-        const result=applyTransfer(squad,c);
-        const hit=futureFt>0?0:4;
-        // Exact path value from the future transfer through the end of the horizon.
-        let delta=0;
-        for(let h=fromGw;h<g;h++){
-          delta+=scoreState(squad,fixtures,h,null,false).points-scoreState(squad,fixtures,h,null,false).points;
-        }
-        for(let h=g;h<=endGw;h++){
-          delta+=scoreState(result,fixtures,h,null,false).points-scoreState(squad,fixtures,h,null,false).points;
-        }
-        delta-=hit;
-        if(!best||delta>best.delta){
-          best={gw:g,candidate:c,result,delta:Number(delta.toFixed(2)),hit};
-        }
+        const d=multiWeekDelta(c.out,c.in,fixtures,g,Math.min(7,endGw-g+1));
+        if(!bestCheap||d>bestCheap.delta)bestCheap={candidate:c,delta:d};
+      }
+      if(!bestCheap)continue;
+
+      const result=applyTransfer(squad,bestCheap.candidate);
+      const exact=squadHorizonDelta(squad,result,fixtures,g,Math.min(7,endGw-g+1));
+      const hit=futureFt>0?0:4;
+      const delta=exact-hit;
+      if(!best||delta>best.delta){
+        best={gw:g,candidate:bestCheap.candidate,result,delta:Number(delta.toFixed(2)),hit};
       }
     }
     return best;
   };
 
-  // Evaluate a funding move only if it has a real, identifiable future use.
-  // The returned value is the exact seven-GW path delta versus keeping the
-  // current squad, so a cash balance by itself can never make a downgrade win.
   const fundingOpportunity=(squad:any[],currentBank:number,gw:number,currentFt:number)=>{
     let best:any=null;
     const fundingMoves=makeCandidates(squad,pool,Infinity,fixtures,gw,Math.min(7,endGw-gw+1))
       .filter((x:any)=>x.cost<0);
 
+    // Every legal funding move is considered. For each one we identify a
+    // concrete future purchase using the full future candidate universe, but
+    // perform the expensive exact squad/XI calculation only for the best
+    // player-level future option. This removes the combinatorial explosion
+    // that previously caused the Vercel function to time out.
     for(const f of fundingMoves){
       const funded=applyTransfer(squad,f);
       const fundedBank=Number((currentBank-f.cost).toFixed(1));
@@ -766,13 +773,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       delta-=future.hit;
 
       if(delta>0.05 && (!best||delta>best.delta)){
-        best={
-          funding:f,
-          funded,
-          fundedBank,
-          future,
-          delta:Number(delta.toFixed(2))
-        };
+        best={funding:f,funded,fundedBank,future,delta:Number(delta.toFixed(2))};
       }
     }
     return best;
