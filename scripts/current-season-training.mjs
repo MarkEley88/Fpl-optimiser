@@ -26,7 +26,7 @@ function parseModel(){
   // The model is stored as a TypeScript object with unquoted property names.
   // Quote those keys before parsing so the learner can read the persisted state
   // without relying on eval/new Function.
-  const json=m[1].replace(/([{,]\\s*)([A-Za-z_$][\\w$]*)\\s*:/g,"$1\\\"$2\\\":");
+  const json=m[1].replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g,"$1\"$2\":");
   return JSON.parse(json);
 }
 function features(rows){
