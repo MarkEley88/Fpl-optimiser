@@ -370,38 +370,35 @@ function squadHorizonDelta(squad:any[],candidate:any[],fixtures:any[],gw:number,
   return Number(delta.toFixed(2));
 }
 function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],gw:number,ft:number){
-  // Generate the full legal candidate pool first. To keep the live 7-GW planner
-  // within Vercel execution limits, use the cheap player-level horizon delta to
-  // identify a broad shortlist, then perform the expensive exact XI/captain
-  // squad-level evaluation only on that shortlist. Price remains affordability
-  // only; it is never part of footballing value.
+  // Generate every legal candidate first. The cheap player-level horizon delta
+  // is used only to make a deliberately broad evaluation set; it is NEVER the
+  // final ranking metric. The exact squad/XI/captain score decides the result.
   const horizon=Math.min(7,39-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw,horizon);
-  // Squad-aware shortlist: retain the strongest overall moves plus several
-  // alternatives for every outgoing player and dedicated funding downgrades.
-  // This prevents the exact XI evaluation from being dominated by one position
-  // or one outgoing player while keeping the runtime bounded.
   const byOutgoing=new Map<number,any[]>();
   for(const x of all){
     const id=Number(x.out.player.id);
     const arr=byOutgoing.get(id)||[];
-    if(arr.length<5)arr.push(x);
+    if(arr.length<10)arr.push(x);
     byOutgoing.set(id,arr);
   }
   const byIncoming=new Map<number,any[]>();
   for(const x of all){
     const id=Number(x.in.id);
     const arr=byIncoming.get(id)||[];
-    if(arr.length<2)arr.push(x);
+    if(arr.length<4)arr.push(x);
     byIncoming.set(id,arr);
   }
   const shortlist:any[]=[
-    ...all.slice(0,32),
+    ...all.slice(0,60),
     ...Array.from(byOutgoing.values()).flat(),
     ...Array.from(byIncoming.values()).flat(),
-    ...all.filter((x:any)=>x.cost<0).slice(0,24)
+    ...all.filter((x:any)=>x.cost<0).slice(0,40)
   ];
-  const preselect=[...new Map(shortlist.map((x:any)=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()].slice(0,100);
+  // Keep the cap high enough that every current squad player gets meaningful
+  // representation while avoiding an unbounded O(players x universe x 7 GW)
+  // exact search on every beam state.
+  const preselect=[...new Map(shortlist.map((x:any)=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()].slice(0,220);
   const rows=preselect.map(x=>{
     const hit=ft>0?0:4;
     const result=applyTransfer(squad,x);
@@ -485,15 +482,42 @@ function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:numb
 }
 function decisionPlanDiagnostics(squad:any[],pool:any[],fixtures:any[],gw:number,bank:number,ft:number){
   const baseline=scoreState(squad,fixtures,gw,null).points;
-  const candidates=makeCandidates(squad,pool,bank,fixtures,gw,Math.min(7,39-gw));
-  const rows=candidates.slice(0,8).map((x:any)=>{
+  const horizon=Math.min(7,39-gw);
+  const all=makeCandidates(squad,pool,bank,fixtures,gw,horizon);
+  const hit=ft>0?0:4;
+  // Exact squad-level checks across a broad set: top candidates for every
+  // outgoing player plus the strongest overall legal moves. This makes the
+  // "Hold" decision auditable rather than relying on one global shortlist.
+  const byOutgoing=new Map<number,any[]>();
+  for(const x of all){
+    const id=Number(x.out.player.id);
+    const arr=byOutgoing.get(id)||[];
+    if(arr.length<8)arr.push(x);
+    byOutgoing.set(id,arr);
+  }
+  const diagnosticPool=[...new Map([
+    ...all.slice(0,30),
+    ...Array.from(byOutgoing.values()).flat()
+  ].map((x:any)=>[String(x.out.player.id)+":"+String(x.in.id),x])).values()];
+  const rows=diagnosticPool.map((x:any)=>{
     const result=applyTransfer(squad,x);
-    const horizon=Math.min(7,39-gw);
     const delta=squadHorizonDelta(squad,result,fixtures,gw,horizon);
-    const hit=ft>0?0:4;
     return {out:x.out.player.name,in:x.in.name,cost:x.cost,horizonDelta:delta,strategicDelta:Number((delta-hit).toFixed(2)),hit};
-  });
-  return {holdGW:Number(baseline.toFixed(2)),bestSingle:rows[0]||null,candidates:rows};
+  }).sort((a:any,b:any)=>b.strategicDelta-a.strategicDelta);
+  const bestByOutgoing:any[]=[];
+  for(const [outId,items] of byOutgoing.entries()){
+    const evaluated=rows.filter((r:any)=>r.out===items[0].out.player.name);
+    if(evaluated.length)bestByOutgoing.push(evaluated[0]);
+  }
+  bestByOutgoing.sort((a,b)=>b.strategicDelta-a.strategicDelta);
+  return {
+    holdGW:Number(baseline.toFixed(2)),
+    legalCandidateCount:all.length,
+    evaluatedCandidateCount:rows.length,
+    bestSingle:rows[0]||null,
+    bestByOutgoing:bestByOutgoing.slice(0,15),
+    candidates:rows.slice(0,8)
+  };
 }
 function scoreState(squad:any[],fixtures:any[],gw:number,chip:string|null){
   const key=String(gw)+":"+String(chip||"none")+":"+squad.map(x=>x.player.id).sort((a,b)=>a-b).join(",");
