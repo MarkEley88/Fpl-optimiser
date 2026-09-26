@@ -692,7 +692,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   type State={
     squad:any[],bank:number,ft:number,total:number,steps:any[],usedChips:string[],
     recentMoves:{gw:number,outId:number,inId:number}[],
-    fundingPlan?:any
+    fundingPlan?:any,
+    continuationValue?:number
   };
 
   let states:State[]=[{
@@ -715,20 +716,11 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   // deliberately based on exact squad/XI scoring, not player price or captaincy.
   const bestFutureSingle=(squad:any[],futureBank:number,fromGw:number,futureFt:number)=>{
     let best:any=null;
-    const baseWeekly:any={};
-    for(let g=fromGw;g<=endGw;g++)baseWeekly[g]=scoreState(squad,fixtures,g,null,false).points;
-
     for(let g=fromGw;g<=endGw;g++){
       const candidates=makeCandidates(squad,pool,futureBank,fixtures,g,Math.min(7,endGw-g+1));
-      // First score the entire universe with the cheap player-level horizon
-      // delta. This is not a price ranking and contains no arbitrary top-N cut.
-      // Only the best candidate then needs the expensive exact squad/XI path
-      // calculation.
-      let bestCheap:any=null;
-      for(const c of candidates){
-        const d=multiWeekDelta(c.out,c.in,fixtures,g,Math.min(7,endGw-g+1));
-        if(!bestCheap||d>bestCheap.delta)bestCheap={candidate:c,delta:d};
-      }
+      // The complete legal universe is screened cheaply. Only the strongest
+      // player-level candidate needs the expensive exact XI/formation check.
+      const bestCheap=candidates[0]?{candidate:candidates[0],delta:candidates[0].delta}:null;
       if(!bestCheap)continue;
 
       const result=applyTransfer(squad,bestCheap.candidate);
@@ -752,7 +744,11 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     // perform the expensive exact squad/XI calculation only for the best
     // player-level future option. This removes the combinatorial explosion
     // that previously caused the Vercel function to time out.
-    for(const f of fundingMoves){
+    // Screen every legal funding downgrade, then exact-check only the strongest
+    // concrete funding opportunities. This keeps the whole universe in scope
+    // without multiplying a full seven-GW search by hundreds of downgrades.
+    const fundingPool=fundingMoves.slice(0,8);
+    for(const f of fundingPool){
       const funded=applyTransfer(squad,f);
       const fundedBank=Number((currentBank-f.cost).toFixed(1));
       const futureFt=Math.min(5,Math.max(0,currentFt-1)+1);
@@ -857,9 +853,12 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         const gain=scoreState(sq,fixtures,gw,null,false);
         const nf=Math.min(5,Math.max(0,st.ft-1)+1);
 
+        const currentDelta=Number((gain.points-base.points-hit).toFixed(2));
+        const continuationValue=Math.max(0,Number((funding.delta-currentDelta).toFixed(2)));
         next.push({
           ...st,
           squad:sq,bank:nb,ft:nf,
+          continuationValue,
           fundingPlan:{
             fromGw:gw,
             fundingTransfer:f.in.name+" for "+f.out.player.name,
@@ -873,7 +872,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
             gw,
             action:f.in.name+" for "+f.out.player.name+" (funds "+funding.future.candidate.in.name+" in GW"+funding.future.gw+")"+(hit?" (-4 points)":""),chip:null,
             bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,
-            projectedGain:Number((gain.points-base.points-hit).toFixed(2)),
+            projectedGain:currentDelta,
             fundingPlan:{
               targetGw:funding.future.gw,
               target:funding.future.candidate.in.name+" for "+funding.future.candidate.out.player.name,
@@ -935,9 +934,9 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       }
     }
 
-    // Rank on the full remaining horizon plus a concrete future transfer
-    // opportunity. This explicitly protects funding states from being discarded
-    // just because they lose a fraction of a point in the current GW.
+    // Rank once per state. The continuation value for a funding state was
+    // calculated when that state was created; do not recursively search future
+    // transfers during sorting.
     next.sort((a:any,b:any)=>stateRank(b,gw+1)-stateRank(a,gw+1));
     states=next.slice(0,BEAM);
     console.log("[decision-plan] completed GW",gw,"frontier",states.length);
