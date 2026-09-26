@@ -40,7 +40,9 @@ function normalise(rows){
   return rows.map(x=>({...x,z:Object.fromEntries(KEYS.map(k=>[k,(num(x[k])-stats[k][0])/stats[k][1]]))}));
 }
 const model=parseModel();
+const initialLearnedGW=model.lastLearnedGW||0;
 const live=fs.existsSync(LIVE_PATH)?JSON.parse(fs.readFileSync(LIVE_PATH,"utf8")):{season:"2026-27",gameweeks:{}};
+const initialGameweeks=Object.keys(live.gameweeks||{}).length;
 const bootstrap=await get("/bootstrap-static/");
 const current=Number(bootstrap.events?.find(e=>e.is_current)?.id||bootstrap.events?.find(e=>e.is_next)?.id||1);
 const completed=Math.max(0,current-1);
@@ -70,8 +72,12 @@ for(const {gw,data} of rows){
   learned=gw;
 }
 model.lastLearnedGW=learned;
-model.updatedAt=new Date().toISOString();
+const gameweeksChanged=Object.keys(live.gameweeks||{}).length!==initialGameweeks;
+const modelChanged=learned!==initialLearnedGW;
 fs.mkdirSync("data",{recursive:true});
-fs.writeFileSync(LIVE_PATH,JSON.stringify(live,null,2));
-fs.writeFileSync(MODEL_PATH,"// Incremental current-season learning state.\n// Completed 2026/27 GWs are learned once; the five historical seasons are not replayed.\nexport const CURRENT_SEASON_MODEL="+JSON.stringify(model,null,2)+" as const;\n");
-console.log("Current-season model learned through GW",learned);
+if(gameweeksChanged) fs.writeFileSync(LIVE_PATH,JSON.stringify(live,null,2));
+if(modelChanged){
+  model.updatedAt=new Date().toISOString();
+  fs.writeFileSync(MODEL_PATH,"// Incremental current-season learning state.\n// Completed 2026/27 GWs are learned once; the five historical seasons are not replayed.\nexport const CURRENT_SEASON_MODEL="+JSON.stringify(model,null,2)+" as const;\n");
+}
+console.log("Current-season model learned through GW",learned,"| new gameweeks:",gameweeksChanged,"| model updated:",modelChanged);
