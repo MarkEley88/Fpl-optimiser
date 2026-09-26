@@ -1,6 +1,5 @@
 import {HISTORICAL_MODEL} from "./historical-model";
 import {CURRENT_SEASON_MODEL} from "./current-season-model";
-import {buildExactTransferPlan as buildExactTransferPlanIsolated} from "./exact-transfer";
 import {exactSearch} from "./exact-search";
 export type Player=any;
 
@@ -949,7 +948,7 @@ function buildExactTransferPlan(initial:any[],pool:any[],fixtures:any[],startGw:
   const stateKey=(s:XState)=>{
     const players=[...s.squad].sort((a,b)=>Number(a.player.id)-Number(b.player.id))
       .map(x=>Number(x.player.id)+":"+sellPrice(x).toFixed(1)).join(",");
-    return s.gw+"|"+players+"|"+s.bank.toFixed(1)+"|"+s.freeTransfers+"|"+s.chips.sort().join(",");
+    return s.gw+"|"+players+"|"+s.bank.toFixed(1)+"|"+s.freeTransfers+"|"+[...s.chips].sort().join(",");
   };
 
   const topWeekBound=new Map<number,number>();
@@ -1042,7 +1041,7 @@ function buildExactTransferPlan(initial:any[],pool:any[],fixtures:any[],startGw:
       action:transfers.length?ids+(a.hit?" (-"+a.hit+" points)":""):"Hold",
       chip:null,
       bank:Number(bank||0),
-      ft:Math.max(0,getFT(history,startGw,entryHistory)),
+      ft:Math.max(0, getFT(history,a.gw,entryHistory)),
       transferSequence:transfers,
       projectedGain:Number((running-before).toFixed(2))
     };
