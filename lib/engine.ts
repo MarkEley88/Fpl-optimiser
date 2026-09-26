@@ -206,7 +206,7 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
     modelFeatures:modelFeatures(p,currentGw),
     // Keep a current-season starting-rate signal separate from the training
     // z-scores. FPL's bootstrap feed supplies cumulative starts and minutes.
-    currentGw,currentGw, recentStartRate:Number(p.starts||0)/Math.max(1,currentGw),
+    currentGw, recentStartRate:Number(p.starts||0)/Math.max(1,currentGw),
     recentStartMinutes:78,
     recentBenchMinutes:18,
     historicalScore:0,raw:p
