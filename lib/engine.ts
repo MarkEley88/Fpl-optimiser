@@ -95,29 +95,45 @@ function startProbability(p:any){
   const raw=rawPlayer(p);
   const availability=availabilityProb(p);
   if(!availability)return 0;
-  const recentRate=p.recentStartRate??raw.recentStartRate;
-  const recentMinutesRate=p.recentMinutesRate??raw.recentMinutesRate;
-  const recent=recentRate!==undefined?clamp(Number(recentRate||0)):undefined;
-  const appearances=Number(p.appearances??raw.appearances??0);
-  const starts=Number(p.starts??raw.starts??0);
-  const minutes=Number(p.minutes??raw.minutes??0);
-  if(recent!==undefined){
-    const season=appearances>0?clamp(starts/appearances):recent;
-    const minuteRate=recentMinutesRate!==undefined?clamp(Number(recentMinutesRate||0)):clamp(minutes/(90*Math.max(1,appearances)));
-    return clamp(availability*(.62*recent+.28*season+.10*minuteRate),.02,.98);
+
+  const gw=Math.max(1,Number(p.currentGw??raw.currentGw??1));
+  const starts=Math.max(0,Number(p.starts??raw.starts??0));
+  const minutes=Math.max(0,Number(p.minutes??raw.minutes??0));
+  const recentRate=Number(p.recentStartRate??raw.recentStartRate);
+  const recent=Number.isFinite(recentRate)?clamp(recentRate):clamp(starts/gw);
+
+  // Bootstrap does not expose a reliable appearances field. Derive a conservative
+  // appearance proxy from starts/minutes rather than treating every available
+  // player as an automatic starter.
+  const appearanceProxy=Math.max(starts, Math.ceil(minutes/60));
+  const seasonRate=appearanceProxy>0?clamp(starts/appearanceProxy):0;
+  const minutesRate=appearanceProxy>0?clamp(minutes/(90*appearanceProxy)):0;
+
+  if(starts===0&&minutes===0){
+    // No evidence of a start this season. Keep a small, position-aware chance
+    // rather than the previous blanket 20% assumption. GK backups are especially
+    // unlikely to start without evidence from the live feed.
+    const pos=Number(p.position??raw.position??p.element_type??raw.element_type);
+    return clamp(availability*(pos===1?.04:.10),.01,.30);
   }
-  if(!appearances&&!starts)return .2*availability;
-  if(starts<=0)return clamp(availability*.12,.02,.25);
-  const season=starts/Math.max(1,appearances||starts);
-  const minutesRate=minutes/(90*Math.max(1,appearances||starts));
-  return clamp(availability*(.62*clamp(season)+.28*clamp(minutesRate)+.10),.02,.98);
+
+  const start=availability*(.58*recent+.27*seasonRate+.15*minutesRate);
+  return clamp(start,.01,.98);
 }
 function expectedMinutes(p:any){
   const raw=rawPlayer(p);
   const start=startProbability(p),availability=availabilityProb(p);
   const startMinutes=Number(p.recentStartMinutes??raw.recentStartMinutes??0)||78;
   const benchMinutes=Number(p.recentBenchMinutes??raw.recentBenchMinutes??0)||18;
-  const benchAppear=availability*(1-start)*.72;
+  const minutes=Number(p.minutes??raw.minutes??0);
+  const starts=Number(p.starts??raw.starts??0);
+
+  // A player with no minutes has only a small cameo probability. A player who
+  // regularly appears from the bench gets a higher probability. This prevents
+  // unused substitutes and second-choice keepers being projected for ~13 minutes
+  // simply because they are available.
+  const benchChance=minutes>0||starts>0?.55:.15;
+  const benchAppear=availability*(1-start)*benchChance;
   return Math.round(start*startMinutes+benchAppear*benchMinutes);
 }
 // Stabilise per-90 rates for tiny samples. A 3-minute cameo with one goal
@@ -190,7 +206,7 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
     modelFeatures:modelFeatures(p,currentGw),
     // Keep a current-season starting-rate signal separate from the training
     // z-scores. FPL's bootstrap feed supplies cumulative starts and minutes.
-    recentStartRate:Number(p.starts||0)/Math.max(1,currentGw),
+    currentGw,currentGw, recentStartRate:Number(p.starts||0)/Math.max(1,currentGw),
     recentStartMinutes:78,
     recentBenchMinutes:18,
     historicalScore:0,raw:p
@@ -222,7 +238,13 @@ function weekScore(p:any,fixtures:any[],gw:number){
   // available player simply because his underlying per-minute projection is
   // strong. Price is still completely excluded from this score.
   const availability=availabilityProb(p);
-  const value=Number(Math.max(0,(currentBase*.88+modelAdjusted*.12)*availability).toFixed(2));
+  // Blend the live per-fixture projection with the five-season learned
+  // player prior. The learned prior is deliberately bounded so it cannot overwhelm
+  // live xG/xA/minutes/availability, while still influencing rankings.
+  const modelWeight=.25;
+  const liveWeight=1-modelWeight;
+  const blended=(currentBase*liveWeight+modelAdjusted*modelWeight)*availability;
+  const value=Number(Math.max(0,blended).toFixed(2));
   WEEK_SCORE_CACHE.set(cacheKey,value);
   return value;
 }
