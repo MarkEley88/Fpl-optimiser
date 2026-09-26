@@ -680,13 +680,6 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   //
   // IMPORTANT TRANSFER LOGIC:
   // - A transfer is a state change; price is only a feasibility constraint.
-  // - We do NOT optimise generic two-transfer combinations in the same GW as
-  //   the main search. That was causing the planner to over-focus on "sell one /
-  //   buy one now" combinations and miss deliberate funding followed by a
-  //   later upgrade.
-  // - A funding move is only retained when the engine can identify a concrete
-  //   future upgrade that the additional bank enables and the COMPLETE path
-  //   improves the five-GW outcome.
   // - Bank therefore has no standalone value.
   // - Captaincy is excluded from all transfer-path scoring.
   const endGw=Math.min(38,startGw+4);
@@ -715,78 +708,11 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     return v;
   };
 
-  // Find the best concrete single transfer available in a future GW. This is
-  // deliberately based on exact squad/XI scoring, not player price or captaincy.
-  const bestFutureSingle=(squad:any[],futureBank:number,fromGw:number,futureFt:number)=>{
-    let best:any=null;
-    for(let g=fromGw;g<=endGw;g++){
-      const candidates=makeCandidates(squad,pool,futureBank,fixtures,g,Math.min(7,endGw-g+1));
-      // The complete legal universe is screened cheaply. Only the strongest
-      // player-level candidate needs the expensive exact XI/formation check.
-      const bestCheap=candidates[0]?{candidate:candidates[0],delta:candidates[0].delta}:null;
-      if(!bestCheap)continue;
-
-      const result=applyTransfer(squad,bestCheap.candidate);
-      const exact=squadHorizonDelta(squad,result,fixtures,g,Math.min(7,endGw-g+1));
-      const hit=futureFt>0?0:4;
-      const delta=exact-hit;
-      if(!best||delta>best.delta){
-        best={gw:g,candidate:bestCheap.candidate,result,delta:Number(delta.toFixed(2)),hit};
-      }
-    }
-    return best;
-  };
-
-  const fundingOpportunity=(squad:any[],currentBank:number,gw:number,currentFt:number)=>{
-    let best:any=null;
-    const fundingMoves=makeCandidates(squad,pool,Infinity,fixtures,gw,Math.min(5,endGw-gw+1))
-      .filter((x:any)=>x.cost<0);
-
-    // Every legal funding move is considered. For each one we identify a
-    // concrete future purchase using the full future candidate universe, but
-    // perform the expensive exact squad/XI calculation only for the best
-    // player-level future option. This removes the combinatorial explosion
-    // that previously caused the Vercel function to time out.
-    // Screen every legal funding downgrade, then exact-check only the strongest
-    // concrete funding opportunities. This keeps the whole universe in scope
-    // without multiplying a full five-GW search by hundreds of downgrades.
-    const fundingPool=fundingMoves.slice(0,8);
-    for(const f of fundingPool){
-      const funded=applyTransfer(squad,f);
-      const fundedBank=Number((currentBank-f.cost).toFixed(1));
-      const futureFt=Math.min(5,Math.max(0,currentFt-1)+1);
-      const future=bestFutureSingle(funded,fundedBank,gw+1,futureFt);
-      if(!future)continue;
-
-      let delta=scoreState(funded,fixtures,gw,null,false).points
-        -scoreState(squad,fixtures,gw,null,false).points;
-
-      for(let h=gw+1;h<future.gw;h++){
-        delta+=scoreState(funded,fixtures,h,null,false).points
-          -scoreState(squad,fixtures,h,null,false).points;
-      }
-      for(let h=future.gw;h<=endGw;h++){
-        delta+=scoreState(future.result,fixtures,h,null,false).points
-          -scoreState(squad,fixtures,h,null,false).points;
-      }
-      delta-=future.hit;
-
-      if(delta>0.05 && (!best||delta>best.delta)){
-        best={funding:f,funded,fundedBank,future,delta:Number(delta.toFixed(2))};
-      }
-    }
-    return best;
-  };
-
-  const stateRank=(s:State,fromGw:number)=>{
-    const fixed=s.total+fixedFuture(s.squad,fromGw);
-    // A concrete future transfer opportunity is added as a continuation value.
-    // This is what prevents a sensible funding downgrade from being pruned just
-    // because its immediate GW score is lower.
-    const future=fromGw<=endGw?bestFutureSingle(s.squad,s.bank,fromGw,s.ft):null;
-    return fixed+(future?Math.max(0,future.delta):0);
-  };
-
+  // Future transfer timing is handled by the multi-GW state frontier below.
+  // We do not assign standalone value to bank or preselect a funding move.
+  // A downgrade survives only when its resulting squad/bank state is retained
+  // by the same sequence/state search.
+  
   for(let gw=startGw;gw<=endGw;gw++){
     console.log("[decision-plan] starting GW",gw,"states",states.length);
     const next:any[]=[];
