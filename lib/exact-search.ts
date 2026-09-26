@@ -41,9 +41,9 @@ export type ExactSearchConfig<S, A = unknown> = {
  * bound. With no nodeLimit and a valid upperBound, pruning cannot remove the
  * optimum. Equivalent states are memoised by their canonical state key.
  */
-export function exactSearch<S extends {gw:number}, A = unknown>(
-  config: ExactSearchConfig<S, A>
-): ExactSearchResult<S, A> {
+export function exactSearch(
+  config: ExactSearchConfig<any, any>
+): ExactSearchResult<any, any> {
   const started = Date.now();
   const keyOf = config.key;
   const bestSeen = new Map<string, number>();
