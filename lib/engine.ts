@@ -683,7 +683,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   // - Bank therefore has no standalone value.
   // - Captaincy is excluded from all transfer-path scoring.
   const endGw=Math.min(38,startGw+4);
-  const BEAM=10;
+  const BEAM=20;
 
   type State={
     squad:any[],bank:number,ft:number,total:number,steps:any[],usedChips:string[],
@@ -749,7 +749,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       // NO "two transfers max" rule here: the search can use up to the current
       // FT allowance plus hits, capped at five same-GW transfers for runtime.
       type Path={squad:any[],bank:number,transfers:any[],cheapDelta:number,hit:number};
-      const maxTransfers=Math.min(5,Math.max(1,st.ft+3));
+      const maxTransfers=Math.min(5,Math.max(1,st.ft+4));
       let paths:Path[]=[{squad:st.squad,bank:st.bank,transfers:[],cheapDelta:0,hit:0}];
       const seen=new Set<string>();
 
@@ -781,13 +781,22 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           }
         }
         if(!expanded.length)break;
-        // Cheap screening only. Every legal candidate was considered before
-        // pruning; exact XI/formation scoring happens only on final paths.
-        expanded.sort((a,b)=>b.cheapDelta-a.cheapDelta);
-        paths=[...paths,...expanded.slice(0,12)];
-        // Keep the search tractable while retaining single, multi-transfer and
-        // funding-first paths. The no-transfer path is already represented by HOLD.
-        paths=paths.sort((a,b)=>b.cheapDelta-a.cheapDelta).slice(0,24);
+        // Do not let point gain alone prune the search. A funding downgrade
+        // can be negative in isolation but unlock a materially better player
+        // later in the sequence. Keep separate beams for:
+        //   1) points gain,
+        //   2) cash released,
+        //   3) deepest multi-transfer paths.
+        // Every legal candidate is generated before these bounded beams.
+        const byPoints=[...expanded].sort((a,b)=>b.cheapDelta-a.cheapDelta).slice(0,12);
+        const byFunding=[...expanded].sort((a,b)=>(b.bank-st.bank)-(a.bank-st.bank)).slice(0,8);
+        const byDepth=[...expanded].sort((a,b)=>b.transfers.length-a.transfers.length).slice(0,6);
+        const merged=new Map<string,Path>();
+        for(const p of [...paths,...byPoints,...byFunding,...byDepth]){
+          const key=p.squad.map(x=>x.player.id).sort((a,b)=>a-b).join(",")+"|"+p.bank.toFixed(1);
+          if(!merged.has(key)||p.cheapDelta>merged.get(key)!.cheapDelta)merged.set(key,p);
+        }
+        paths=[...merged.values()].sort((a,b)=>b.cheapDelta-a.cheapDelta).slice(0,32);
       }
 
       const scoredPaths=paths.filter(p=>p.transfers.length).map(path=>{
