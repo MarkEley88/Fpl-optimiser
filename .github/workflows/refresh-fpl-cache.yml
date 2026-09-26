@@ -1,8 +1,11 @@
 name: Refresh FPL live cache
 
-# Refresh the fallback snapshot without creating frequent Vercel deployments.
-# The snapshot is only committed when the current gameweek changes.
+# Refresh the fallback snapshot twice weekly without creating frequent Vercel deployments.
+# Automatic runs: Tuesday and Friday mornings. Manual dispatch remains available.
 on:
+  schedule:
+    - cron: "0 7 * * 2"
+    - cron: "0 7 * * 5"
   workflow_dispatch:
 
 permissions:
