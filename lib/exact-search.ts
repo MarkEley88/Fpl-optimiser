@@ -33,15 +33,6 @@ export type ExactSearchConfig<S, A = unknown> = {
   nodeLimit?: number;
 };
 
-const defaultKey = (s: ExactState) =>
-  [
-    s.gw,
-    [...s.squadIds].sort((a, b) => a - b).join(","),
-    s.bank.toFixed(1),
-    s.freeTransfers,
-    [...s.chips].sort().join(","),
-  ].join("|");
-
 /**
  * Exact depth-first state-space search.
  *
