@@ -673,28 +673,26 @@ function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:n
   return{squad,bank:Number((budget-cost).toFixed(1))};
 }
 function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:number,bank:number,history:any,entryHistory:any=null){
-  // True squad-level beam search:
-  // - Every state is scored by the XI + captain that actually scores points.
-  // - Hold is always a candidate, so the engine must beat the no-transfer path.
-  // - Price is only an affordability constraint.
-  // - Multi-transfer moves are evaluated as the combined resulting squad, allowing
-  //   a downgrade in one position to fund an upgrade elsewhere.
-  // - Future transfers are represented by carrying multiple complete states forward;
-  //   we never treat a player's price as part of his footballing value.
+  // Multi-GW squad-state search.
+  //
+  // IMPORTANT TRANSFER LOGIC:
+  // - A transfer is a state change; price is only a feasibility constraint.
+  // - We do NOT optimise generic two-transfer combinations in the same GW as
+  //   the main search. That was causing the planner to over-focus on "sell one /
+  //   buy one now" combinations and miss deliberate funding followed by a
+  //   later upgrade.
+  // - A funding move is only retained when the engine can identify a concrete
+  //   future upgrade that the additional bank enables and the COMPLETE path
+  //   improves the seven-GW outcome.
+  // - Bank therefore has no standalone value.
+  // - Captaincy is excluded from all transfer-path scoring.
   const endGw=Math.min(38,startGw+6);
-  const BEAM=12;
-  const SINGLE_KEEP=20;
-  const FIRST_PAIR_KEEP=10;
-  const SECOND_PAIR_KEEP=10;
-
-  // The final recommendation must beat the no-transfer baseline on the same
-  // seven-GW XI-only scoring basis. A funding move has no value merely because
-  // it releases cash: the resulting squad must earn more points after all
-  // transfers and hits are accounted for.
+  const BEAM=24;
 
   type State={
     squad:any[],bank:number,ft:number,total:number,steps:any[],usedChips:string[],
-    recentMoves:{gw:number,outId:number,inId:number}[]
+    recentMoves:{gw:number,outId:number,inId:number}[],
+    fundingPlan?:any
   };
 
   let states:State[]=[{
@@ -713,11 +711,80 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     return v;
   };
 
+  // Find the best concrete single transfer available in a future GW. This is
+  // deliberately based on exact squad/XI scoring, not player price or captaincy.
+  const bestFutureSingle=(squad:any[],futureBank:number,fromGw:number,futureFt:number)=>{
+    let best:any=null;
+    for(let g=fromGw;g<=endGw;g++){
+      const candidates=makeCandidates(squad,pool,futureBank,fixtures,g,Math.min(7,endGw-g+1));
+      for(const c of candidates){
+        const result=applyTransfer(squad,c);
+        const hit=futureFt>0?0:4;
+        // Exact path value from the future transfer through the end of the horizon.
+        let delta=0;
+        for(let h=fromGw;h<g;h++){
+          delta+=scoreState(squad,fixtures,h,null,false).points-scoreState(squad,fixtures,h,null,false).points;
+        }
+        for(let h=g;h<=endGw;h++){
+          delta+=scoreState(result,fixtures,h,null,false).points-scoreState(squad,fixtures,h,null,false).points;
+        }
+        delta-=hit;
+        if(!best||delta>best.delta){
+          best={gw:g,candidate:c,result,delta:Number(delta.toFixed(2)),hit};
+        }
+      }
+    }
+    return best;
+  };
+
+  // Evaluate a funding move only if it has a real, identifiable future use.
+  // The returned value is the exact seven-GW path delta versus keeping the
+  // current squad, so a cash balance by itself can never make a downgrade win.
+  const fundingOpportunity=(squad:any[],currentBank:number,gw:number,currentFt:number)=>{
+    let best:any=null;
+    const fundingMoves=makeCandidates(squad,pool,Infinity,fixtures,gw,Math.min(7,endGw-gw+1))
+      .filter((x:any)=>x.cost<0);
+
+    for(const f of fundingMoves){
+      const funded=applyTransfer(squad,f);
+      const fundedBank=Number((currentBank-f.cost).toFixed(1));
+      const futureFt=Math.min(5,Math.max(0,currentFt-1)+1);
+      const future=bestFutureSingle(funded,fundedBank,gw+1,futureFt);
+      if(!future)continue;
+
+      let delta=scoreState(funded,fixtures,gw,null,false).points
+        -scoreState(squad,fixtures,gw,null,false).points;
+
+      for(let h=gw+1;h<future.gw;h++){
+        delta+=scoreState(funded,fixtures,h,null,false).points
+          -scoreState(squad,fixtures,h,null,false).points;
+      }
+      for(let h=future.gw;h<=endGw;h++){
+        delta+=scoreState(future.result,fixtures,h,null,false).points
+          -scoreState(squad,fixtures,h,null,false).points;
+      }
+      delta-=future.hit;
+
+      if(delta>0.05 && (!best||delta>best.delta)){
+        best={
+          funding:f,
+          funded,
+          fundedBank,
+          future,
+          delta:Number(delta.toFixed(2))
+        };
+      }
+    }
+    return best;
+  };
+
   const stateRank=(s:State,fromGw:number)=>{
-    // Exact value of keeping the resulting squad unchanged is a safe, transparent
-    // lower-bound continuation value. The beam then preserves multiple different
-    // squads so later transfers can improve on it.
-    return s.total+fixedFuture(s.squad,fromGw);
+    const fixed=s.total+fixedFuture(s.squad,fromGw);
+    // A concrete future transfer opportunity is added as a continuation value.
+    // This is what prevents a sensible funding downgrade from being pruned just
+    // because its immediate GW score is lower.
+    const future=fromGw<=endGw?bestFutureSingle(s.squad,s.bank,fromGw,s.ft):null;
+    return fixed+(future?Math.max(0,future.delta):0);
   };
 
   for(let gw=startGw;gw<=endGw;gw++){
@@ -727,15 +794,14 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     for(const st of states){
       const base=scoreState(st.squad,fixtures,gw,null,false);
       const earned=Math.min(5,st.ft+1);
-      // Prevent rapid A→B→A churn caused by small weekly projection swings.
-      // Genuine reversals remain possible when the footballing gain is material.
+
       const recentReversal=(outId:number,inId:number)=>st.recentMoves.some(m=>
         gw-m.gw<=2 && m.outId===inId && m.inId===outId
       );
       const reversalThreshold=1.5;
 
-      // 1) HOLD — always retain the baseline path.
-      const hold:State={
+      // 1) HOLD
+      next.push({
         ...st,
         ft:earned,
         total:st.total+base.points,
@@ -743,121 +809,80 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           gw,action:"Hold",chip:null,bank:st.bank,ft:st.ft,
           formation:base.formation,cap:base.cap,projectedGain:0
         }]
-      };
-      next.push(hold);
+      });
 
-      // 2) SINGLE TRANSFERS — every legal affordable replacement is scored on
-      // the resulting XI/captain outcome over the seven-GW horizon.
-      const singles=strategicCandidates(st.squad,pool,st.bank,fixtures,gw,st.ft)
-        .filter((x:any)=>x.cost<=st.bank+.001)
-        .filter((x:any)=>!recentReversal(Number(x.out.player.id),Number(x.in.id)) || Number(x.delta||0)>=reversalThreshold)
-        .slice(0,SINGLE_KEEP);
+      // 2) SINGLE TRANSFERS
+      // Use the whole legal/affordable single-transfer universe. There is no
+      // arbitrary top-N candidate cut here.
+      const singles=makeCandidates(st.squad,pool,st.bank,fixtures,gw,Math.min(7,endGw-gw+1))
+        .map((x:any)=>{
+          const hit=st.ft>0?0:4;
+          const result=applyTransfer(st.squad,x);
+          const exact=squadHorizonDelta(st.squad,result,fixtures,gw,Math.min(7,endGw-gw+1));
+          return{...x,hit,exactDelta:Number((exact-hit).toFixed(2))};
+        })
+        .filter((x:any)=>!recentReversal(Number(x.out.player.id),Number(x.in.id)) || x.exactDelta>=reversalThreshold)
+        .sort((a:any,b:any)=>b.exactDelta-a.exactDelta);
 
       for(const c of singles){
-        const hit=c.hit;
         const sq=applyTransfer(st.squad,c);
         const nb=Number((st.bank-c.cost).toFixed(1));
         const gain=scoreState(sq,fixtures,gw,null,false);
         const nf=Math.min(5,Math.max(0,st.ft-1)+1);
         next.push({
-          ...st,squad:sq,bank:nb,ft:nf,
+          ...st,
+          squad:sq,bank:nb,ft:nf,
           recentMoves:[...st.recentMoves,{gw,outId:Number(c.out.player.id),inId:Number(c.in.id)}].slice(-4),
+          total:st.total+gain.points-c.hit,
+          steps:[...st.steps,{
+            gw,
+            action:c.in.name+" for "+c.out.player.name+(c.hit?" (-4 points)":""),chip:null,
+            bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,
+            projectedGain:Number((gain.points-base.points-c.hit).toFixed(2))
+          }]
+        });
+      }
+
+      // 3) DELIBERATE FUNDING
+      // A downgrade is NOT valuable because it creates bank. It is only added
+      // when the engine can see a specific future upgrade that uses that bank
+      // and the complete path is positive over the remaining horizon.
+      const funding=fundingOpportunity(st.squad,st.bank,gw,st.ft);
+      if(funding){
+        const f=funding.funding;
+        const sq=funding.funded;
+        const hit=st.ft>0?0:4;
+        const nb=funding.fundedBank;
+        const gain=scoreState(sq,fixtures,gw,null,false);
+        const nf=Math.min(5,Math.max(0,st.ft-1)+1);
+
+        next.push({
+          ...st,
+          squad:sq,bank:nb,ft:nf,
+          fundingPlan:{
+            fromGw:gw,
+            fundingTransfer:f.in.name+" for "+f.out.player.name,
+            targetGw:funding.future.gw,
+            targetTransfer:funding.future.candidate.in.name+" for "+funding.future.candidate.out.player.name,
+            pathGain:funding.delta
+          },
+          recentMoves:[...st.recentMoves,{gw,outId:Number(f.out.player.id),inId:Number(f.in.id)}].slice(-4),
           total:st.total+gain.points-hit,
           steps:[...st.steps,{
             gw,
-            action:c.in.name+" for "+c.out.player.name+(hit?" (-4 points)":""),
-            chip:null,bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,
-            projectedGain:Number((gain.points-base.points-hit).toFixed(2))
+            action:f.in.name+" for "+f.out.player.name+" (funds "+funding.future.candidate.in.name+" in GW"+funding.future.gw+")"+(hit?" (-4 points)":""),chip:null,
+            bank:nb,ft:nf,formation:gain.formation,cap:gain.cap,
+            projectedGain:Number((gain.points-base.points-hit).toFixed(2)),
+            fundingPlan:{
+              targetGw:funding.future.gw,
+              target:funding.future.candidate.in.name+" for "+funding.future.candidate.out.player.name,
+              fullPathGain:funding.delta
+            }
           }]
         });
       }
 
-      // 3) TWO-TRANSFER COMBINATIONS — evaluate the COMPLETE resulting squad.
-      // The first move is allowed to be a funding downgrade even when it is not
-      // individually affordable; only the combined net cost must be affordable.
-      // This directly tests "downgrade here -> upgrade there" strategies.
-      const firstAll=makeCandidates(st.squad,pool,Infinity,fixtures,gw,7);
-      const firstPreselect=[...firstAll.slice(0,16),...firstAll.filter((x:any)=>x.cost<0).slice(0,12)];
-      // makeCandidates is already ordered by pure footballing points delta. Use
-      // that cheap ordering to narrow the pair search, then score the COMPLETE
-      // two-transfer squad exactly below. This avoids evaluating thousands of
-      // expensive horizon/XI calculations for moves that cannot reach the pair.
-      const firstScored=firstPreselect.map((x:any)=>({...x,combinedDelta:x.delta}));
-
-      const firstFunding=firstScored.filter((x:any)=>x.cost<0).slice(0,20);
-      const firstPool=[...new Map(
-        [...firstScored.slice(0,FIRST_PAIR_KEEP),...firstFunding]
-          .map((x:any)=>[String(x.out.player.id)+":"+String(x.in.id),x])
-      ).values()];
-
-      const pairStates:any[]=[];
-      for(const a of firstPool){
-        const afterA=applyTransfer(st.squad,a);
-        const secondAll=makeCandidates(afterA,pool,Infinity,fixtures,gw,2);
-        const secondPreselect=[...secondAll.slice(0,16),...secondAll.filter((x:any)=>x.cost<0).slice(0,10)];
-        const secondScored=secondPreselect.map((x:any)=>({...x,combinedDelta:x.delta}));
-
-        const secondFunding=secondScored.filter((x:any)=>x.cost<0).slice(0,16);
-        const secondPool=[...new Map(
-          [...secondScored.slice(0,SECOND_PAIR_KEEP),...secondFunding]
-            .map((x:any)=>[String(x.out.player.id)+":"+String(x.in.id),x])
-        ).values()];
-
-        for(const b of secondPool){
-          // Do not replace the same outgoing player twice, and do not buy the
-          // same incoming player twice.
-          if(Number(a.out.player.id)===Number(b.out.player.id))continue;
-          if(Number(a.in.id)===Number(b.in.id))continue;
-          if(recentReversal(Number(a.out.player.id),Number(a.in.id)))continue;
-          if(recentReversal(Number(b.out.player.id),Number(b.in.id)))continue;
-
-          const totalCost=Number((a.cost+b.cost).toFixed(1));
-          if(totalCost>st.bank+.001)continue;
-
-          const sq=applyTransfer(afterA,b);
-          if(!validSquad(sq))continue;
-
-          const gain=scoreState(sq,fixtures,gw,null,false);
-          const hit=Math.max(0,2-st.ft)*4;
-          const combinedFuture=squadHorizonDelta(st.squad,sq,fixtures,gw,Math.min(7,endGw-gw+1));
-          // Funding downgrades are allowed, but only when the COMPLETE resulting
-          // squad creates a real XI-scoring improvement over the current squad.
-          // This prevents reserve/bench downgrades from being treated as valuable
-          // simply because they release money for an unrelated move.
-          const hasFundingMove=a.cost<0||b.cost<0;
-          if(hasFundingMove&&combinedFuture<=Math.max(0.15,hit+0.15))continue;
-          pairStates.push({a,b,sq,totalCost,gain,hit,combinedFuture});
-        }
-      }
-
-      pairStates.sort((a:any,b:any)=>{
-        const av=a.combinedFuture-a.hit;
-        const bv=b.combinedFuture-b.hit;
-        return bv-av;
-      });
-
-      for(const p of pairStates.slice(0,8)){
-        const nf=Math.min(5,Math.max(0,st.ft-2)+1);
-        const nb=Number((st.bank-p.totalCost).toFixed(1));
-        next.push({
-          ...st,
-          squad:p.sq,bank:nb,ft:nf,
-          recentMoves:[...st.recentMoves,
-            {gw,outId:Number(p.a.out.player.id),inId:Number(p.a.in.id)},
-            {gw,outId:Number(p.b.out.player.id),inId:Number(p.b.in.id)}
-          ].slice(-4),
-          total:st.total+p.gain.points-p.hit,
-          steps:[...st.steps,{
-            gw,
-            action:p.a.in.name+" for "+p.a.out.player.name+" + "+p.b.in.name+" for "+p.b.out.player.name+(p.hit?" (-"+p.hit+" points)":""),
-            chip:null,bank:nb,ft:nf,formation:p.gain.formation,cap:p.gain.cap,
-            projectedGain:Number((p.gain.points-base.points-p.hit).toFixed(2))
-          }]
-        });
-      }
-
-      // 4) CHIPS — retain the existing chip logic, but let the state compete
-      // against normal transfer/hold paths using the same cumulative objective.
+      // Chips remain separate from transfer optimisation.
       for(const chip of CHIP_NAMES){
         if(st.usedChips.includes(chip)||chipUsed(history,chip,gw))continue;
         if(!chipShouldPlay(chip,st.squad,pool,fixtures,gw,history))continue;
@@ -899,9 +924,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           next.push({
             ...st,ft:earned,total:st.total+gain.points,
             steps:[...st.steps,{
-              gw,
-              action:"Hold",
-              chip:chip==="bboost"?"Bench Boost":"Triple Captain",
+              gw,action:"Hold",chip:chip==="bboost"?"Bench Boost":"Triple Captain",
               bank:st.bank,ft:earned,formation:gain.formation,cap:gain.cap,
               projectedGain:Number((gain.points-base.points).toFixed(2))
             }],
@@ -911,36 +934,30 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       }
     }
 
-    // Rank by cumulative actual points plus the exact continuation value of the
-    // current squad. Keep a broad frontier so saving a transfer or funding a
-    // later upgrade cannot be pruned just because it is weaker this week.
+    // Rank on the full remaining horizon plus a concrete future transfer
+    // opportunity. This explicitly protects funding states from being discarded
+    // just because they lose a fraction of a point in the current GW.
     next.sort((a:any,b:any)=>stateRank(b,gw+1)-stateRank(a,gw+1));
     states=next.slice(0,BEAM);
     console.log("[decision-plan] completed GW",gw,"frontier",states.length);
   }
 
-  // At the end, choose by actual cumulative XI points. No heuristic continuation
-  // value is included because there are no future gameweeks left. The no-transfer
-  // path is a hard baseline: a transfer strategy that does not beat Hold across
-  // the full horizon is not a recommendation, regardless of cash released.
   states.sort((a:any,b:any)=>b.total-a.total);
   const best=states[0];
-  const holdTotal=best?.steps?.length===endGw-startGw+1
-    ? best.steps.reduce((sum:number,step:any)=>sum+Number(step.projectedGain===0?0:0),0)
-    : 0;
-  // Recalculate the immutable Hold baseline directly so the guard cannot be
-  // affected by beam pruning or by the identity of the winning state.
+
   let holdBaseline=0;
   for(let g=startGw;g<=endGw;g++)holdBaseline+=scoreState(initial,fixtures,g,null,false).points;
+
   if(!best||best.total<=holdBaseline+0.05){
-    let ft=getFT(history,startGw,entryHistory),total=0;
+    let ft=getFT(history,startGw,entryHistory);
     const holdSteps:any[]=[];
     for(let g=startGw;g<=endGw;g++){
       const base=scoreState(initial,fixtures,g,null);
-      const nextFt=Math.min(5,ft+1);
-      total+=base.points;
-      holdSteps.push({gw:g,action:"Hold",chip:null,bank:Number(bank||0),ft:ft,formation:base.formation,cap:base.cap,projectedGain:0});
-      ft=nextFt;
+      holdSteps.push({
+        gw:g,action:"Hold",chip:null,bank:Number(bank||0),ft,
+        formation:base.formation,cap:base.cap,projectedGain:0
+      });
+      ft=Math.min(5,ft+1);
     }
     return holdSteps;
   }
