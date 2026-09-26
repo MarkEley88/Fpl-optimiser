@@ -6,13 +6,13 @@ export type ExactState = {
   chips: string[];
 };
 
-export type ExactTransition<S extends ExactState, A = unknown> = {
+export type ExactTransition<S, A = unknown> = {
   state: S;
   action: A;
   points: number;
 };
 
-export type ExactSearchResult<S extends ExactState, A = unknown> = {
+export type ExactSearchResult<S, A = unknown> = {
   score: number;
   states: S[];
   actions: A[];
@@ -23,13 +23,13 @@ export type ExactSearchResult<S extends ExactState, A = unknown> = {
   elapsedMs: number;
 };
 
-export type ExactSearchConfig<S extends ExactState, A = unknown> = {
+export type ExactSearchConfig<S, A = unknown> = {
   start: S;
   endGw: number;
   expand: (state: S) => ExactTransition<S, A>[];
   terminalScore: (state: S) => number;
   upperBound: (state: S) => number;
-  key?: (state: S) => string;
+  key: (state: S) => string;
   nodeLimit?: number;
 };
 
@@ -54,7 +54,7 @@ export function exactSearch<S extends ExactState, A = unknown>(
   config: ExactSearchConfig<S, A>
 ): ExactSearchResult<S, A> {
   const started = Date.now();
-  const keyOf = config.key ?? defaultKey;
+  const keyOf = config.key;
   const bestSeen = new Map<string, number>();
 
   let bestScore = -Infinity;
