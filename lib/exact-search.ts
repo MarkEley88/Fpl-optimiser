@@ -49,14 +49,14 @@ export function exactSearch(
   const bestSeen = new Map<string, number>();
 
   let bestScore = -Infinity;
-  let bestStates: S[] = [];
-  let bestActions: A[] = [];
+  let bestStates: any[] = [];
+  let bestActions: any[] = [];
   let nodes = 0;
   let memoHits = 0;
   let pruned = 0;
   let complete = true;
 
-  const dfs = (state: S, accumulated: number, states: S[], actions: A[]) => {
+  const dfs = (state: any, accumulated: number, states: any[], actions: any[]) => {
     nodes++;
     if (config.nodeLimit && nodes > config.nodeLimit) {
       complete = false;
