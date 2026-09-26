@@ -23,7 +23,7 @@ export type ExactSearchResult<S, A = unknown> = {
   elapsedMs: number;
 };
 
-export type ExactSearchConfig<S, A = unknown> = {
+export type ExactSearchConfig<S extends {gw:number}, A = unknown> = {
   start: S;
   endGw: number;
   expand: (state: S) => ExactTransition<S, A>[];
@@ -33,15 +33,6 @@ export type ExactSearchConfig<S, A = unknown> = {
   nodeLimit?: number;
 };
 
-const defaultKey = (s: ExactState) =>
-  [
-    s.gw,
-    [...s.squadIds].sort((a, b) => a - b).join(","),
-    s.bank.toFixed(1),
-    s.freeTransfers,
-    [...s.chips].sort().join(","),
-  ].join("|");
-
 /**
  * Exact depth-first state-space search.
  *
@@ -50,7 +41,7 @@ const defaultKey = (s: ExactState) =>
  * bound. With no nodeLimit and a valid upperBound, pruning cannot remove the
  * optimum. Equivalent states are memoised by their canonical state key.
  */
-export function exactSearch<S extends ExactState, A = unknown>(
+export function exactSearch<S extends {gw:number}, A = unknown>(
   config: ExactSearchConfig<S, A>
 ): ExactSearchResult<S, A> {
   const started = Date.now();
