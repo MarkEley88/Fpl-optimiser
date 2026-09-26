@@ -20,8 +20,9 @@ export async function GET(request:Request){
     const entryHistory:any=(picks as any)?.entry_history??null;
     const url=new URL(request.url);
     const planOnly=url.searchParams.has("plan");
+    const exact=url.searchParams.has("exact");
     const fast=url.searchParams.has("fast")&&!planOnly;
-    const result=await optimiseSquad((picks as any)?.picks||[],b.elements||[],f,gw,Number((entryHistory as any)?.bank||0)/10,h,entryHistory,planOnly,!fast,planOnly);
+    const result=await optimiseSquad((picks as any)?.picks||[],b.elements||[],f,gw,Number((entryHistory as any)?.bank||0)/10,h,entryHistory,planOnly,!fast,planOnly,exact);
     return NextResponse.json({connected:true,team:t,gw,picks,history:h,result,generatedAt:new Date().toISOString(),elapsedMs:Date.now()-started});
   }catch(e){
     console.error("optimise failed",e);
