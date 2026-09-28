@@ -69,8 +69,53 @@ jobs:
               if old not in s:
                   raise SystemExit(f"Expected search control not found: {old}")
               s=s.replace(old,new)
+          marker='''    // Rank once per state. The continuation value for a funding state was
+    // calculated when that state was created; do not recursively search future
+    // transfers during sorting.
+          '''
+          patch='''    // Safe dominance pruning before the global beam:
+    // For an identical future-relevant state, a state with no less bank and
+    // no less accumulated score dominates the weaker state. Recent-move
+    // history and chip state stay in the key because they affect legality.
+    const dominated=new Map<string,any[]>();
+    for(const candidate of next){
+      const key=[
+        gw+1,
+        candidate.squad.map((x:any)=>Number(x.player.id)).sort((a:number,b:number)=>a-b).join(","),
+        Number(candidate.ft),
+        [...(candidate.usedChips||[])].sort().join(","),
+        JSON.stringify(candidate.recentMoves||[])
+      ].join("|");
+      const bucket=dominated.get(key)||[];
+      let isDominated=false;
+      for(const prior of bucket){
+        if(prior.total>=candidate.total-1e-9 && prior.bank>=candidate.bank-1e-9){
+          isDominated=true;
+          break;
+        }
+      }
+      if(isDominated)continue;
+      const survivors=bucket.filter((prior:any)=>
+        !(candidate.total>=prior.total-1e-9 && candidate.bank>=prior.bank-1e-9)
+      );
+      survivors.push(candidate);
+      dominated.set(key,survivors);
+    }
+    const prunedNext=[...dominated.values()].flat();
+    console.log("[decision-plan] dominance",next.length,"→",prunedNext.length);
+
+    // Rank once per state. The continuation value for a funding state was
+    // calculated when that state was created; do not recursively search future
+    // transfers during sorting.
+          '''
+          if marker not in s:
+              raise SystemExit("Expected global-state ranking marker not found")
+          s=s.replace(marker,patch,1)
+          s=s.replace("next.sort((a:any,b:any)=>(b.total+fixedFuture(b.squad,gw+1))-(a.total+fixedFuture(a.squad,gw+1)));\n    states=next.slice(0,BEAM);",
+                      "prunedNext.sort((a:any,b:any)=>(b.total+fixedFuture(b.squad,gw+1))-(a.total+fixedFuture(a.squad,gw+1)));\n    states=prunedNext.slice(0,BEAM);"
+                      ,1)
           p.write_text(s)
-          print("Worker search frontier broadened: global beam=300, same-GW path beam=200, exact paths=30.")
+          print("Worker search frontier broadened with safe state-dominance pruning: global beam=300, same-GW path beam=200, exact paths=30.")
           PY
 
       - name: Run multi-gameweek decision worker
