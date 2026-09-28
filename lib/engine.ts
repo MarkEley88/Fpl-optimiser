@@ -765,6 +765,9 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
 
           for(const x of legal){
             const outId=Number(x.out.player.id),inId=Number(x.in.id);
+            // Hard constraint: Haaland (411) is never sold by the optimiser.
+            // This applies to every transfer in every same-GW funding sequence.
+            if(outId===411)continue;
             if(path.transfers.some(t=>Number(t.out.player.id)===inId&&Number(t.in.id)===outId))continue;
             const key=path.squad.map(p=>p.player.id).sort((a,b)=>a-b).join(",")+"|"+inId+"|"+outId;
             if(seen.has(key))continue;
@@ -905,7 +908,14 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   let holdBaseline=0;
   for(let g=startGw;g<=endGw;g++)holdBaseline+=scoreState(initial,fixtures,g,null,false).points;
 
-  if(!best||best.total<=holdBaseline+0.05){
+  // Strategy-level threshold: only recommend a transfer/chip strategy when
+  // the complete five-GW plan is projected to add at least 5 points versus
+  // simply holding the starting squad. Smaller gains are treated as noise and
+  // are not worth spending transfers or reshaping the squad.
+  const minimumStrategyGain=5;
+  const strategyGain=best?Number((best.total-holdBaseline).toFixed(2)):-Infinity;
+
+  if(!best||strategyGain<minimumStrategyGain){
     let ft=getFT(history,startGw,entryHistory);
     const holdSteps:any[]=[];
     for(let g=startGw;g<=endGw;g++){
@@ -918,7 +928,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     }
     return holdSteps;
   }
-  return best.steps;
+  return best.steps.map((step:any)=>({...step,strategyGain5GW:strategyGain,minimumStrategyGain:minimumStrategyGain,haalandLocked:true}));
 }
 
 export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null,includeDecisionPlan=true,fastMode=false,planOnly=false){
