@@ -1,3 +1,4 @@
+// GitHub Actions worker: run the expensive decision search away from Vercel.
 import fs from "node:fs";
 import {optimiseSquad} from "../lib/engine";
 
@@ -15,10 +16,7 @@ async function main(){
   const fixtures=(cache.fixtures||[]).map((x:any)=>{
     const h=(bootstrap.teams||[]).find((t:any)=>Number(t.id)===Number(x.team_h));
     const a=(bootstrap.teams||[]).find((t:any)=>Number(t.id)===Number(x.team_a));
-    return {...x,
-      team_h_rank:num(h?.position),team_a_rank:num(a?.position),
-      team_h_form:num(h?.form),team_a_form:num(a?.form)
-    };
+    return {...x,team_h_rank:num(h?.position),team_a_rank:num(a?.position),team_h_form:num(h?.form),team_a_form:num(a?.form)};
   });
 
   const gw=num(team.current_event||(history.current||[]).at(-1)?.event||1);
@@ -26,25 +24,8 @@ async function main(){
   const bank=num(entryHistory?.bank)/10;
 
   console.log(`[decision-worker] calculating GW ${gw} multi-GW plan on GitHub Actions`);
-  const result=await optimiseSquad(
-    picks.picks||[],
-    bootstrap.elements||[],
-    fixtures,
-    gw,
-    bank,
-    history,
-    entryHistory,
-    true,
-    false,
-    true
-  );
-
-  const output={
-    generatedAt:new Date().toISOString(),
-    gameweek:gw,
-    decisionPlan:result.decisionPlan||[],
-    decisionPlanDiagnostics:result.decisionPlanDiagnostics||null
-  };
+  const result=await optimiseSquad(picks.picks||[],bootstrap.elements||[],fixtures,gw,bank,history,entryHistory,true,false,true);
+  const output={generatedAt:new Date().toISOString(),gameweek:gw,decisionPlan:result.decisionPlan||[],decisionPlanDiagnostics:result.decisionPlanDiagnostics||null};
 
   fs.mkdirSync("data",{recursive:true});
   fs.writeFileSync(OUT_PATH,JSON.stringify(output,null,2));
