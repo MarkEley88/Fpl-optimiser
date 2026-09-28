@@ -675,6 +675,21 @@ function improveSquad(initial:any[],pool:any[],fixtures:any[],gw:number,budget:n
   const cost=squad.reduce((s,x)=>s+x.player.price,0);
   return{squad,bank:Number((budget-cost).toFixed(1))};
 }
+function admissibleFutureUpperBound(pool:any[],fixtures:any[],fromGw:number,toGw:number){
+  // Admissible upper bound: for each remaining GW take the 11 highest
+  // individual player scores from the entire universe, ignoring formation,
+  // club, budget, transfer and hit constraints. Every legal XI is a subset
+  // of this unconstrained universe, so the result can only overstate what is
+  // achievable. It is deliberately used only for states without chips, since
+  // chip boosts would otherwise need their own conservative bound.
+  let total=0;
+  for(let g=fromGw;g<=toGw;g++){
+    const top=pool.map(p=>weekScore(p,fixtures,g)).sort((a,b)=>b-a).slice(0,11);
+    total+=top.reduce((a,b)=>a+b,0);
+  }
+  return total;
+}
+
 function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:number,bank:number,history:any,entryHistory:any=null){
   // Multi-GW squad-state search.
   //
@@ -898,11 +913,26 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
       }
     }
 
+    // Safe admissible-bound pruning for transfer/hold states with no chips.
+    // Keep a feasible incumbent (best state followed by HOLD for the rest of
+    // the horizon). A state is removed only when even the unconstrained global
+    // player upper bound cannot reach that incumbent. Future hits are ignored
+    // in the bound, which makes it deliberately optimistic.
+    const futureUpper=admissibleFutureUpperBound(pool,fixtures,gw+1,endGw);
+    const noChipIncumbent=next
+      .filter((x:any)=>(x.usedChips||[]).length===0)
+      .reduce((best:number,x:any)=>Math.max(best,x.total+fixedFuture(x.squad,gw+1)), -Infinity);
+    const beforeBound=next.length;
+    const boundedNext=next.filter((x:any)=>
+      (x.usedChips||[]).length>0 || x.total+futureUpper+1e-9>=noChipIncumbent
+    );
+    console.log("[decision-plan] admissible-bound",beforeBound,"->",boundedNext.length,"upper",Number(futureUpper.toFixed(2)),"incumbent",Number(noChipIncumbent.toFixed(2)));
+
     // Rank once per state. The continuation value for a funding state was
     // calculated when that state was created; do not recursively search future
     // transfers during sorting.
-    next.sort((a:any,b:any)=>(b.total+fixedFuture(b.squad,gw+1))-(a.total+fixedFuture(a.squad,gw+1)));
-    states=next.slice(0,BEAM);
+    boundedNext.sort((a:any,b:any)=>(b.total+fixedFuture(b.squad,gw+1))-(a.total+fixedFuture(a.squad,gw+1)));
+    states=boundedNext.slice(0,BEAM);
     console.log("[decision-plan] completed GW",gw,"frontier",states.length);
   }
 
