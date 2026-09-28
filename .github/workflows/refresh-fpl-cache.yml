@@ -14,6 +14,7 @@ on:
     paths:
       - ".github/workflows/refresh-fpl-cache.yml"
       - "scripts/decision-worker.ts"
+      - "lib/engine.ts"
 
 permissions:
   contents: write
