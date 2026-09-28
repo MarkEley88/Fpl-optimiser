@@ -75,8 +75,7 @@ jobs:
           '''
           patch='''    // Safe dominance pruning before the global beam:
     // For an identical future-relevant state, a state with no less bank and
-    // no less accumulated score dominates the weaker state. Recent-move
-    // history and chip state stay in the key because they affect legality.
+    // no less accumulated score dominates the weaker state.
     const dominated=new Map<string,any[]>();
     for(const candidate of next){
       const key=[
@@ -102,7 +101,7 @@ jobs:
       dominated.set(key,survivors);
     }
     const prunedNext=[...dominated.values()].flat();
-    console.log("[decision-plan] dominance",next.length,"→",prunedNext.length);
+    console.log("[decision-plan] dominance",next.length,"->",prunedNext.length);
 
     // Rank once per state. The continuation value for a funding state was
     // calculated when that state was created; do not recursively search future
@@ -112,8 +111,7 @@ jobs:
               raise SystemExit("Expected global-state ranking marker not found")
           s=s.replace(marker,patch,1)
           s=s.replace("next.sort((a:any,b:any)=>(b.total+fixedFuture(b.squad,gw+1))-(a.total+fixedFuture(a.squad,gw+1)));\n    states=next.slice(0,BEAM);",
-                      "prunedNext.sort((a:any,b:any)=>(b.total+fixedFuture(b.squad,gw+1))-(a.total+fixedFuture(a.squad,gw+1)));\n    states=prunedNext.slice(0,BEAM);"
-                      ,1)
+                      "prunedNext.sort((a:any,b:any)=>(b.total+fixedFuture(b.squad,gw+1))-(a.total+fixedFuture(a.squad,gw+1)));\n    states=prunedNext.slice(0,BEAM);",1)
           p.write_text(s)
           print("Worker search frontier broadened with safe state-dominance pruning: global beam=300, same-GW path beam=200, exact paths=30.")
           PY
