@@ -1,4 +1,6 @@
 import {NextResponse} from "next/server";
+import fs from "node:fs";
+import path from "node:path";
 import{getBootstrap,getFixtures,getHistory,getPicks,getTeam}from "../../../lib/fpl";
 import{optimiseSquad}from "../../../lib/engine";
 
@@ -6,6 +8,15 @@ export const runtime="nodejs";
 export const dynamic="force-dynamic";
 export const maxDuration=300;
 export const preferredRegion="lhr1";
+
+function readDecisionCache(gw:number){
+  try{
+    const file=path.join(process.cwd(),"data","decision-plan.json");
+    if(!fs.existsSync(file))return null;
+    const cached=JSON.parse(fs.readFileSync(file,"utf8"));
+    return Number(cached.gameweek)===Number(gw)?cached:null;
+  }catch{return null}
+}
 
 export async function GET(request:Request){
   const id=process.env.FPL_TEAM_ID||"1187241";
@@ -21,7 +32,25 @@ export async function GET(request:Request){
     const url=new URL(request.url);
     const planOnly=url.searchParams.has("plan");
     const fast=url.searchParams.has("fast")&&!planOnly;
-    const result=await optimiseSquad((picks as any)?.picks||[],b.elements||[],f,gw,Number((entryHistory as any)?.bank||0)/10,h,entryHistory,planOnly,!fast,planOnly);
+    const cachedPlan=readDecisionCache(gw);
+
+    // The expensive multi-GW search is now a GitHub Actions worker. The web
+    // request only calculates the live squad/transfer/substitution layer. This
+    // prevents a second full search from being launched by the UI and keeps the
+    // Vercel function responsive while retaining the same engine code/model.
+    const result=await optimiseSquad(
+      (picks as any)?.picks||[],b.elements||[],f,gw,Number((entryHistory as any)?.bank||0)/10,h,entryHistory,
+      planOnly?true:!fast,
+      fast,
+      planOnly
+    );
+
+    if(cachedPlan&&!planOnly){
+      result.decisionPlan=cachedPlan.decisionPlan||[];
+      result.decisionPlanDiagnostics=cachedPlan.decisionPlanDiagnostics||null;
+      result.decisionPlanSource={source:"github-actions-worker",generatedAt:cachedPlan.generatedAt,gameweek:cachedPlan.gameweek};
+    }
+
     return NextResponse.json({connected:true,team:t,gw,picks,history:h,result,generatedAt:new Date().toISOString(),elapsedMs:Date.now()-started});
   }catch(e){
     console.error("optimise failed",e);
