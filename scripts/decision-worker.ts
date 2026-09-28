@@ -30,3 +30,5 @@ async function main(){
   console.log(`[decision-worker] wrote ${OUT_PATH}; ${output.decisionPlan.length} GW steps`);
 }
 main().catch(error=>{console.error("[decision-worker] failed",error);process.exit(1)});
+
+// Search-engine validation trigger: run the worker after decision-search algorithm changes.
