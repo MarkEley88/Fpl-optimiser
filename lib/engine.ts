@@ -851,6 +851,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         if(chip==="wildcard"){
           const totalBudget=Number((st.bank+st.squad.reduce((s,x)=>s+sellPrice(x),0)).toFixed(1));
           const rebuilt=improveSquad(st.squad,pool,fixtures,gw,totalBudget);
+          // Haaland is a permanent squad anchor: wildcard rebuilds may not remove him.
+          if(!rebuilt.squad.some((x:any)=>Number(x.player?.id)===411))continue;
           const rg=scoreState(rebuilt.squad,fixtures,gw,null,false);
           if(rg.points>base.points){
             next.push({
@@ -867,6 +869,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
         }else if(chip==="freehit"){
           const totalBudget=Number((st.bank+st.squad.reduce((s,x)=>s+sellPrice(x),0)).toFixed(1));
           const best=bestTemporarySquad(st.squad,pool,fixtures,gw,totalBudget);
+          // Free Hit is temporary, but the optimiser still treats Haaland as a hard anchor.
+          if(!best.some((p:any)=>Number(p.id)===411))continue;
           const tmp=best.map((p:any)=>({player:p}));
           const fg=scoreState(tmp,fixtures,gw,null,false);
           if(fg.points>base.points){
