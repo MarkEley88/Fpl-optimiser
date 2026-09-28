@@ -59,18 +59,18 @@ jobs:
           p=Path("lib/engine.ts")
           s=p.read_text()
           replacements={
-            "const BEAM=20;":"const BEAM=100;",
-            "slice(0,12);":"slice(0,30);",
-            "slice(0,8);":"slice(0,20);",
-            "slice(0,6);":"slice(0,15);",
-            ".slice(0,32);":".slice(0,100);"
+            "const BEAM=20;":"const BEAM=300;",
+            "slice(0,12);":"slice(0,50);",
+            "slice(0,8);":"slice(0,30);",
+            "slice(0,6);":"slice(0,20);",
+            ".slice(0,32);":".slice(0,200);"
           }
           for old,new in replacements.items():
               if old not in s:
                   raise SystemExit(f"Expected search control not found: {old}")
               s=s.replace(old,new)
           p.write_text(s)
-          print("Worker search frontier broadened: beam=100, same-GW path beam=100, exact paths=20.")
+          print("Worker search frontier broadened: global beam=300, same-GW path beam=200, exact paths=30.")
           PY
 
       - name: Run multi-gameweek decision worker
