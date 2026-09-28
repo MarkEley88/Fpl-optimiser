@@ -1,7 +1,8 @@
 name: Refresh FPL live cache
 
-# Refresh the fallback snapshot twice weekly without creating frequent Vercel deployments.
-# Automatic runs: Tuesday and Friday mornings. Manual dispatch remains available.
+# Refresh the fallback snapshot twice weekly. The multi-GW decision search is
+# deliberately run on GitHub Actions rather than inside Vercel so it is not
+# constrained by the web-function execution budget.
 on:
   schedule:
     - cron: "0 7 * * 2"
@@ -67,37 +68,33 @@ jobs:
 
           path = pathlib.Path("data/fpl-cache.json")
           old_gw = None
-
           if path.exists():
               try:
                   old = json.loads(path.read_text())
-                  old_gw = (
-                      old.get("team", {}).get("current_event")
-                      or (old.get("history", {}).get("current") or [{}])[-1].get("event")
-                  )
+                  old_gw = old.get("team", {}).get("current_event") or (old.get("history", {}).get("current") or [{}])[-1].get("event")
               except Exception:
                   pass
 
-          if old_gw == gw:
-              print(f"Cache already represents GW {gw}; keeping existing snapshot.")
-          else:
-              path.parent.mkdir(exist_ok=True)
-              path.write_text(json.dumps(out, separators=(",", ":")))
-              print(f"Updated fallback cache from GW {old_gw} to GW {gw} at {out['generatedAt']}")
+          path.parent.mkdir(exist_ok=True)
+          path.write_text(json.dumps(out, separators=(",", ":")))
+          print(f"Refreshed live cache for GW {gw}; previous cache GW was {old_gw}.")
           PY
 
       - name: Incrementally learn completed current-season gameweeks
         run: node scripts/current-season-training.mjs
 
-      - name: Commit cache and current-season model
+      - name: Run multi-gameweek decision worker
+        run: npx --yes tsx scripts/decision-worker.ts
+
+      - name: Commit cache, model and decision plan
         run: |
-          if git diff --quiet -- data/fpl-cache.json lib/current-season-model.ts data/current-season-live.json; then
-            echo "No cache or model change; no deployment will be triggered."
+          if git diff --quiet -- data/fpl-cache.json lib/current-season-model.ts data/current-season-live.json data/decision-plan.json; then
+            echo "No cache, model or decision-plan change."
             exit 0
           fi
 
           git config user.name "fpl-optimiser-bot"
           git config user.email "fpl-optimiser-bot@users.noreply.github.com"
-          git add data/fpl-cache.json data/current-season-live.json lib/current-season-model.ts scripts/current-season-training.mjs
-          git commit -m "chore: refresh FPL cache and current-season model"
+          git add data/fpl-cache.json data/current-season-live.json lib/current-season-model.ts scripts/current-season-training.mjs data/decision-plan.json scripts/decision-worker.ts
+          git commit -m "chore: refresh FPL cache, model and decision plan"
           git push origin HEAD:main
