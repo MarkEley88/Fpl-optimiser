@@ -3,6 +3,8 @@ name: Refresh FPL live cache
 # Refresh the fallback snapshot twice weekly. The multi-GW decision search is
 # deliberately run on GitHub Actions rather than inside Vercel so it is not
 # constrained by the web-function execution budget.
+# Strategy guardrails: a 5-GW plan must add >=5 projected points versus Hold;
+# Haaland (411) is a permanent anchor and may never be sold.
 on:
   schedule:
     - cron: "0 7 * * 2"
