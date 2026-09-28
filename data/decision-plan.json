@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T16:39:23.616Z",
+  "generatedAt": "2026-09-28T20:42:14.394Z",
   "gameweek": 5,
   "decisionPlan": [
     {
@@ -55,7 +55,7 @@
           "recentStartRate": 1,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 3.688,
+          "historicalScore": 3.6791,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -66,22 +66,22 @@
             "cost_change_event_fall": 0,
             "cost_change_start": 1,
             "cost_change_start_fall": -1,
-            "price_change_percent": "21.3",
-            "price_change_hourly_rate": 42,
+            "price_change_percent": "21.4",
+            "price_change_hourly_rate": 50,
             "price_change_projections": [
               {
                 "offset": 0,
-                "projected_percent": "21.4",
+                "projected_percent": "21.5",
                 "likelihood": 2
               },
               {
                 "offset": 1,
-                "projected_percent": "22.0",
+                "projected_percent": "22.2",
                 "likelihood": 2
               },
               {
                 "offset": 2,
-                "projected_percent": "22.6",
+                "projected_percent": "22.9",
                 "likelihood": 2
               }
             ],
@@ -110,10 +110,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 919329,
-            "transfers_in_event": 74052,
-            "transfers_out": 320169,
-            "transfers_out_event": 18511,
+            "transfers_in": 919764,
+            "transfers_in_event": 74487,
+            "transfers_out": 320264,
+            "transfers_out_event": 18606,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -201,8 +201,8 @@
           "minutesRate": 1,
           "recentMinutesRate": 1,
           "modelZ": {
-            "form3": 3.399491505824444,
-            "form5": 3.399491505824444,
+            "form3": 3.3771421557748162,
+            "form5": 3.3771421557748162,
             "p90": 2.632520036303834,
             "xgi90": 5.14919623111406,
             "xg90": 6.187567641316281,
@@ -222,7 +222,7 @@
             "minutesRate": 1.7620328728769603,
             "recentMinutesRate": 1.7609350301735343
           },
-          "currentSeasonScore": 3.8919
+          "currentSeasonScore": 3.8823
         },
         "vice": {
           "id": 427,
@@ -269,7 +269,7 @@
           "recentStartRate": 1,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 2.7762,
+          "historicalScore": 2.7705,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -280,22 +280,22 @@
             "cost_change_event_fall": 0,
             "cost_change_start": -1,
             "cost_change_start_fall": 1,
-            "price_change_percent": "-72.7",
-            "price_change_hourly_rate": -6,
+            "price_change_percent": "-72.8",
+            "price_change_hourly_rate": -10,
             "price_change_projections": [
               {
                 "offset": 0,
-                "projected_percent": "-72.7",
+                "projected_percent": "-72.8",
                 "likelihood": -3
               },
               {
                 "offset": 1,
-                "projected_percent": "-72.7",
+                "projected_percent": "-72.9",
                 "likelihood": -3
               },
               {
                 "offset": 2,
-                "projected_percent": "-72.8",
+                "projected_percent": "-73.0",
                 "likelihood": -3
               }
             ],
@@ -324,10 +324,10 @@
             "team": 16,
             "team_code": 1,
             "total_points": 25,
-            "transfers_in": 460851,
-            "transfers_in_event": 33872,
-            "transfers_out": 2011540,
-            "transfers_out_event": 125041,
+            "transfers_in": 461121,
+            "transfers_in_event": 34142,
+            "transfers_out": 2011901,
+            "transfers_out_event": 125402,
             "value_form": "0.7",
             "value_season": "3.2",
             "web_name": "Mbeumo",
@@ -387,7 +387,7 @@
             "goals_conceded_per_90": 1.6,
             "now_cost_rank": 11,
             "now_cost_rank_type": 8,
-            "form_rank": 28,
+            "form_rank": 27,
             "form_rank_type": 9,
             "points_per_game_rank": 59,
             "points_per_game_rank_type": 25,
@@ -415,8 +415,8 @@
           "minutesRate": 1,
           "recentMinutesRate": 1,
           "modelZ": {
-            "form3": 2.265658012859904,
-            "form5": 2.265658012859904,
+            "form3": 2.2512234936709477,
+            "form5": 2.2512234936709477,
             "p90": 1.3696427529902646,
             "xgi90": 3.893829021368168,
             "xg90": 4.147282270798586,
@@ -436,7 +436,7 @@
             "minutesRate": 1.7620328728769603,
             "recentMinutesRate": 1.7609350301735343
           },
-          "currentSeasonScore": 2.9468
+          "currentSeasonScore": 2.9406
         },
         "candidates": [
           {
@@ -521,7 +521,7 @@
           "recentStartRate": 1,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 3.688,
+          "historicalScore": 3.6791,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -532,22 +532,22 @@
             "cost_change_event_fall": 0,
             "cost_change_start": 1,
             "cost_change_start_fall": -1,
-            "price_change_percent": "21.3",
-            "price_change_hourly_rate": 42,
+            "price_change_percent": "21.4",
+            "price_change_hourly_rate": 50,
             "price_change_projections": [
               {
                 "offset": 0,
-                "projected_percent": "21.4",
+                "projected_percent": "21.5",
                 "likelihood": 2
               },
               {
                 "offset": 1,
-                "projected_percent": "22.0",
+                "projected_percent": "22.2",
                 "likelihood": 2
               },
               {
                 "offset": 2,
-                "projected_percent": "22.6",
+                "projected_percent": "22.9",
                 "likelihood": 2
               }
             ],
@@ -576,10 +576,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 919329,
-            "transfers_in_event": 74052,
-            "transfers_out": 320169,
-            "transfers_out_event": 18511,
+            "transfers_in": 919764,
+            "transfers_in_event": 74487,
+            "transfers_out": 320264,
+            "transfers_out_event": 18606,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -667,8 +667,8 @@
           "minutesRate": 1,
           "recentMinutesRate": 1,
           "modelZ": {
-            "form3": 3.399491505824444,
-            "form5": 3.399491505824444,
+            "form3": 3.3771421557748162,
+            "form5": 3.3771421557748162,
             "p90": 2.632520036303834,
             "xgi90": 5.14919623111406,
             "xg90": 6.187567641316281,
@@ -688,7 +688,7 @@
             "minutesRate": 1.7620328728769603,
             "recentMinutesRate": 1.7609350301735343
           },
-          "currentSeasonScore": 3.8919
+          "currentSeasonScore": 3.8823
         },
         "vice": {
           "id": 427,
@@ -735,7 +735,7 @@
           "recentStartRate": 1,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 2.7762,
+          "historicalScore": 2.7705,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -746,22 +746,22 @@
             "cost_change_event_fall": 0,
             "cost_change_start": -1,
             "cost_change_start_fall": 1,
-            "price_change_percent": "-72.7",
-            "price_change_hourly_rate": -6,
+            "price_change_percent": "-72.8",
+            "price_change_hourly_rate": -10,
             "price_change_projections": [
               {
                 "offset": 0,
-                "projected_percent": "-72.7",
+                "projected_percent": "-72.8",
                 "likelihood": -3
               },
               {
                 "offset": 1,
-                "projected_percent": "-72.7",
+                "projected_percent": "-72.9",
                 "likelihood": -3
               },
               {
                 "offset": 2,
-                "projected_percent": "-72.8",
+                "projected_percent": "-73.0",
                 "likelihood": -3
               }
             ],
@@ -790,10 +790,10 @@
             "team": 16,
             "team_code": 1,
             "total_points": 25,
-            "transfers_in": 460851,
-            "transfers_in_event": 33872,
-            "transfers_out": 2011540,
-            "transfers_out_event": 125041,
+            "transfers_in": 461121,
+            "transfers_in_event": 34142,
+            "transfers_out": 2011901,
+            "transfers_out_event": 125402,
             "value_form": "0.7",
             "value_season": "3.2",
             "web_name": "Mbeumo",
@@ -853,7 +853,7 @@
             "goals_conceded_per_90": 1.6,
             "now_cost_rank": 11,
             "now_cost_rank_type": 8,
-            "form_rank": 28,
+            "form_rank": 27,
             "form_rank_type": 9,
             "points_per_game_rank": 59,
             "points_per_game_rank_type": 25,
@@ -881,8 +881,8 @@
           "minutesRate": 1,
           "recentMinutesRate": 1,
           "modelZ": {
-            "form3": 2.265658012859904,
-            "form5": 2.265658012859904,
+            "form3": 2.2512234936709477,
+            "form5": 2.2512234936709477,
             "p90": 1.3696427529902646,
             "xgi90": 3.893829021368168,
             "xg90": 4.147282270798586,
@@ -902,7 +902,7 @@
             "minutesRate": 1.7620328728769603,
             "recentMinutesRate": 1.7609350301735343
           },
-          "currentSeasonScore": 2.9468
+          "currentSeasonScore": 2.9406
         },
         "candidates": [
           {
@@ -987,7 +987,7 @@
           "recentStartRate": 1,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 3.688,
+          "historicalScore": 3.6791,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -998,22 +998,22 @@
             "cost_change_event_fall": 0,
             "cost_change_start": 1,
             "cost_change_start_fall": -1,
-            "price_change_percent": "21.3",
-            "price_change_hourly_rate": 42,
+            "price_change_percent": "21.4",
+            "price_change_hourly_rate": 50,
             "price_change_projections": [
               {
                 "offset": 0,
-                "projected_percent": "21.4",
+                "projected_percent": "21.5",
                 "likelihood": 2
               },
               {
                 "offset": 1,
-                "projected_percent": "22.0",
+                "projected_percent": "22.2",
                 "likelihood": 2
               },
               {
                 "offset": 2,
-                "projected_percent": "22.6",
+                "projected_percent": "22.9",
                 "likelihood": 2
               }
             ],
@@ -1042,10 +1042,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 919329,
-            "transfers_in_event": 74052,
-            "transfers_out": 320169,
-            "transfers_out_event": 18511,
+            "transfers_in": 919764,
+            "transfers_in_event": 74487,
+            "transfers_out": 320264,
+            "transfers_out_event": 18606,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -1133,8 +1133,8 @@
           "minutesRate": 1,
           "recentMinutesRate": 1,
           "modelZ": {
-            "form3": 3.399491505824444,
-            "form5": 3.399491505824444,
+            "form3": 3.3771421557748162,
+            "form5": 3.3771421557748162,
             "p90": 2.632520036303834,
             "xgi90": 5.14919623111406,
             "xg90": 6.187567641316281,
@@ -1154,7 +1154,7 @@
             "minutesRate": 1.7620328728769603,
             "recentMinutesRate": 1.7609350301735343
           },
-          "currentSeasonScore": 3.8919
+          "currentSeasonScore": 3.8823
         },
         "vice": {
           "id": 605,
@@ -1201,7 +1201,7 @@
           "recentStartRate": 0.6,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 2.2976,
+          "historicalScore": 2.2933,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -1212,8 +1212,8 @@
             "cost_change_event_fall": 0,
             "cost_change_start": 0,
             "cost_change_start_fall": 0,
-            "price_change_percent": "52.5",
-            "price_change_hourly_rate": 9,
+            "price_change_percent": "52.6",
+            "price_change_hourly_rate": -6,
             "price_change_projections": [
               {
                 "offset": 0,
@@ -1222,12 +1222,12 @@
               },
               {
                 "offset": 1,
-                "projected_percent": "52.7",
+                "projected_percent": "52.5",
                 "likelihood": 3
               },
               {
                 "offset": 2,
-                "projected_percent": "52.8",
+                "projected_percent": "52.4",
                 "likelihood": 3
               }
             ],
@@ -1256,10 +1256,10 @@
             "team": 5,
             "team_code": 36,
             "total_points": 20,
-            "transfers_in": 554055,
-            "transfers_in_event": 25166,
-            "transfers_out": 169765,
-            "transfers_out_event": 31811,
+            "transfers_in": 554150,
+            "transfers_in_event": 25261,
+            "transfers_out": 169861,
+            "transfers_out_event": 31907,
             "value_form": "1.1",
             "value_season": "4.4",
             "web_name": "Yalcouyé",
@@ -1319,12 +1319,12 @@
             "goals_conceded_per_90": 1.53,
             "now_cost_rank": 523,
             "now_cost_rank_type": 273,
-            "form_rank": 49,
+            "form_rank": 51,
             "form_rank_type": 16,
             "points_per_game_rank": 89,
             "points_per_game_rank_type": 37,
-            "selected_rank": 86,
-            "selected_rank_type": 30,
+            "selected_rank": 85,
+            "selected_rank_type": 29,
             "starts_per_90": 1.14,
             "clean_sheets_per_90": 0.38,
             "defensive_contribution_per_90": 7.25
@@ -1347,8 +1347,8 @@
           "minutesRate": 0.5244444444444445,
           "recentMinutesRate": 0.5244444444444445,
           "modelZ": {
-            "form3": 1.7502791524214767,
-            "form5": 1.7502791524214767,
+            "form3": 1.7394422836237349,
+            "form5": 1.7394422836237349,
             "p90": 2.554545773048396,
             "xgi90": 3.62874795094866,
             "xg90": 3.7148903429349485,
@@ -1368,13 +1368,13 @@
             "minutesRate": 0.5139233399026875,
             "recentMinutesRate": 0.515123987553614
           },
-          "currentSeasonScore": 2.4015
+          "currentSeasonScore": 2.3969
         },
         "candidates": [
           {
             "name": "Haaland",
             "id": 411,
-            "score": 5.88
+            "score": 5.87
           },
           {
             "name": "Yalcouyé",
@@ -1453,7 +1453,7 @@
           "recentStartRate": 1,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 3.688,
+          "historicalScore": 3.6791,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -1464,22 +1464,22 @@
             "cost_change_event_fall": 0,
             "cost_change_start": 1,
             "cost_change_start_fall": -1,
-            "price_change_percent": "21.3",
-            "price_change_hourly_rate": 42,
+            "price_change_percent": "21.4",
+            "price_change_hourly_rate": 50,
             "price_change_projections": [
               {
                 "offset": 0,
-                "projected_percent": "21.4",
+                "projected_percent": "21.5",
                 "likelihood": 2
               },
               {
                 "offset": 1,
-                "projected_percent": "22.0",
+                "projected_percent": "22.2",
                 "likelihood": 2
               },
               {
                 "offset": 2,
-                "projected_percent": "22.6",
+                "projected_percent": "22.9",
                 "likelihood": 2
               }
             ],
@@ -1508,10 +1508,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 919329,
-            "transfers_in_event": 74052,
-            "transfers_out": 320169,
-            "transfers_out_event": 18511,
+            "transfers_in": 919764,
+            "transfers_in_event": 74487,
+            "transfers_out": 320264,
+            "transfers_out_event": 18606,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -1599,8 +1599,8 @@
           "minutesRate": 1,
           "recentMinutesRate": 1,
           "modelZ": {
-            "form3": 3.399491505824444,
-            "form5": 3.399491505824444,
+            "form3": 3.3771421557748162,
+            "form5": 3.3771421557748162,
             "p90": 2.632520036303834,
             "xgi90": 5.14919623111406,
             "xg90": 6.187567641316281,
@@ -1620,7 +1620,7 @@
             "minutesRate": 1.7620328728769603,
             "recentMinutesRate": 1.7609350301735343
           },
-          "currentSeasonScore": 3.8919
+          "currentSeasonScore": 3.8823
         },
         "vice": {
           "id": 427,
@@ -1667,7 +1667,7 @@
           "recentStartRate": 1,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 2.7762,
+          "historicalScore": 2.7705,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -1678,22 +1678,22 @@
             "cost_change_event_fall": 0,
             "cost_change_start": -1,
             "cost_change_start_fall": 1,
-            "price_change_percent": "-72.7",
-            "price_change_hourly_rate": -6,
+            "price_change_percent": "-72.8",
+            "price_change_hourly_rate": -10,
             "price_change_projections": [
               {
                 "offset": 0,
-                "projected_percent": "-72.7",
+                "projected_percent": "-72.8",
                 "likelihood": -3
               },
               {
                 "offset": 1,
-                "projected_percent": "-72.7",
+                "projected_percent": "-72.9",
                 "likelihood": -3
               },
               {
                 "offset": 2,
-                "projected_percent": "-72.8",
+                "projected_percent": "-73.0",
                 "likelihood": -3
               }
             ],
@@ -1722,10 +1722,10 @@
             "team": 16,
             "team_code": 1,
             "total_points": 25,
-            "transfers_in": 460851,
-            "transfers_in_event": 33872,
-            "transfers_out": 2011540,
-            "transfers_out_event": 125041,
+            "transfers_in": 461121,
+            "transfers_in_event": 34142,
+            "transfers_out": 2011901,
+            "transfers_out_event": 125402,
             "value_form": "0.7",
             "value_season": "3.2",
             "web_name": "Mbeumo",
@@ -1785,7 +1785,7 @@
             "goals_conceded_per_90": 1.6,
             "now_cost_rank": 11,
             "now_cost_rank_type": 8,
-            "form_rank": 28,
+            "form_rank": 27,
             "form_rank_type": 9,
             "points_per_game_rank": 59,
             "points_per_game_rank_type": 25,
@@ -1813,8 +1813,8 @@
           "minutesRate": 1,
           "recentMinutesRate": 1,
           "modelZ": {
-            "form3": 2.265658012859904,
-            "form5": 2.265658012859904,
+            "form3": 2.2512234936709477,
+            "form5": 2.2512234936709477,
             "p90": 1.3696427529902646,
             "xgi90": 3.893829021368168,
             "xg90": 4.147282270798586,
@@ -1834,7 +1834,7 @@
             "minutesRate": 1.7620328728769603,
             "recentMinutesRate": 1.7609350301735343
           },
-          "currentSeasonScore": 2.9468
+          "currentSeasonScore": 2.9406
         },
         "candidates": [
           {
@@ -1845,7 +1845,7 @@
           {
             "name": "Mbeumo",
             "id": 427,
-            "score": 5.49
+            "score": 5.48
           },
           {
             "name": "Yalcouyé",
@@ -1919,7 +1919,7 @@
           "recentStartRate": 1,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 3.688,
+          "historicalScore": 3.6791,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -1930,22 +1930,22 @@
             "cost_change_event_fall": 0,
             "cost_change_start": 1,
             "cost_change_start_fall": -1,
-            "price_change_percent": "21.3",
-            "price_change_hourly_rate": 42,
+            "price_change_percent": "21.4",
+            "price_change_hourly_rate": 50,
             "price_change_projections": [
               {
                 "offset": 0,
-                "projected_percent": "21.4",
+                "projected_percent": "21.5",
                 "likelihood": 2
               },
               {
                 "offset": 1,
-                "projected_percent": "22.0",
+                "projected_percent": "22.2",
                 "likelihood": 2
               },
               {
                 "offset": 2,
-                "projected_percent": "22.6",
+                "projected_percent": "22.9",
                 "likelihood": 2
               }
             ],
@@ -1974,10 +1974,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 919329,
-            "transfers_in_event": 74052,
-            "transfers_out": 320169,
-            "transfers_out_event": 18511,
+            "transfers_in": 919764,
+            "transfers_in_event": 74487,
+            "transfers_out": 320264,
+            "transfers_out_event": 18606,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -2065,8 +2065,8 @@
           "minutesRate": 1,
           "recentMinutesRate": 1,
           "modelZ": {
-            "form3": 3.399491505824444,
-            "form5": 3.399491505824444,
+            "form3": 3.3771421557748162,
+            "form5": 3.3771421557748162,
             "p90": 2.632520036303834,
             "xgi90": 5.14919623111406,
             "xg90": 6.187567641316281,
@@ -2086,7 +2086,7 @@
             "minutesRate": 1.7620328728769603,
             "recentMinutesRate": 1.7609350301735343
           },
-          "currentSeasonScore": 3.8919
+          "currentSeasonScore": 3.8823
         },
         "vice": {
           "id": 427,
@@ -2133,7 +2133,7 @@
           "recentStartRate": 1,
           "recentStartMinutes": 78,
           "recentBenchMinutes": 18,
-          "historicalScore": 2.7762,
+          "historicalScore": 2.7705,
           "raw": {
             "can_transact": true,
             "can_select": true,
@@ -2144,22 +2144,22 @@
             "cost_change_event_fall": 0,
             "cost_change_start": -1,
             "cost_change_start_fall": 1,
-            "price_change_percent": "-72.7",
-            "price_change_hourly_rate": -6,
+            "price_change_percent": "-72.8",
+            "price_change_hourly_rate": -10,
             "price_change_projections": [
               {
                 "offset": 0,
-                "projected_percent": "-72.7",
+                "projected_percent": "-72.8",
                 "likelihood": -3
               },
               {
                 "offset": 1,
-                "projected_percent": "-72.7",
+                "projected_percent": "-72.9",
                 "likelihood": -3
               },
               {
                 "offset": 2,
-                "projected_percent": "-72.8",
+                "projected_percent": "-73.0",
                 "likelihood": -3
               }
             ],
@@ -2188,10 +2188,10 @@
             "team": 16,
             "team_code": 1,
             "total_points": 25,
-            "transfers_in": 460851,
-            "transfers_in_event": 33872,
-            "transfers_out": 2011540,
-            "transfers_out_event": 125041,
+            "transfers_in": 461121,
+            "transfers_in_event": 34142,
+            "transfers_out": 2011901,
+            "transfers_out_event": 125402,
             "value_form": "0.7",
             "value_season": "3.2",
             "web_name": "Mbeumo",
@@ -2251,7 +2251,7 @@
             "goals_conceded_per_90": 1.6,
             "now_cost_rank": 11,
             "now_cost_rank_type": 8,
-            "form_rank": 28,
+            "form_rank": 27,
             "form_rank_type": 9,
             "points_per_game_rank": 59,
             "points_per_game_rank_type": 25,
@@ -2279,8 +2279,8 @@
           "minutesRate": 1,
           "recentMinutesRate": 1,
           "modelZ": {
-            "form3": 2.265658012859904,
-            "form5": 2.265658012859904,
+            "form3": 2.2512234936709477,
+            "form5": 2.2512234936709477,
             "p90": 1.3696427529902646,
             "xgi90": 3.893829021368168,
             "xg90": 4.147282270798586,
@@ -2300,7 +2300,7 @@
             "minutesRate": 1.7620328728769603,
             "recentMinutesRate": 1.7609350301735343
           },
-          "currentSeasonScore": 2.9468
+          "currentSeasonScore": 2.9406
         },
         "candidates": [
           {
@@ -2334,7 +2334,7 @@
     }
   ],
   "decisionPlanDiagnostics": {
-    "holdGW": 50.88,
+    "holdGW": 50.9,
     "legalCandidateCount": 92,
     "evaluatedCandidateCount": 22,
     "bestSingle": {
