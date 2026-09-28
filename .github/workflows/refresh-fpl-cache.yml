@@ -8,6 +8,10 @@ on:
     - cron: "0 7 * * 2"
     - cron: "0 7 * * 5"
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/refresh-fpl-cache.yml"
+      - "scripts/decision-worker.ts"
 
 permissions:
   contents: write
@@ -22,62 +26,25 @@ jobs:
         run: |
           python - <<'PY'
           import json, urllib.request, pathlib, time
-
           base = "https://fantasy.premierleague.com/api"
           team_id = "1187241"
-
-          endpoints = {
-              "bootstrap": "/bootstrap-static/",
-              "fixtures": "/fixtures/",
-              "team": f"/entry/{team_id}/",
-              "history": f"/entry/{team_id}/history/",
-          }
-
-          headers = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
-              "Accept": "application/json, text/plain, */*",
-              "Accept-Language": "en-GB,en;q=0.9",
-              "Referer": "https://fantasy.premierleague.com/",
-              "Origin": "https://fantasy.premierleague.com",
-          }
-
+          endpoints = {"bootstrap":"/bootstrap-static/","fixtures":"/fixtures/","team":f"/entry/{team_id}/","history":f"/entry/{team_id}/history/"}
+          headers = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36","Accept":"application/json, text/plain, */*","Accept-Language":"en-GB,en;q=0.9","Referer":"https://fantasy.premierleague.com/","Origin":"https://fantasy.premierleague.com"}
           def get(path):
-              last = None
+              last=None
               for attempt in range(3):
                   try:
-                      req = urllib.request.Request(base + path, headers=headers)
-                      with urllib.request.urlopen(req, timeout=30) as r:
-                          return json.load(r)
+                      req=urllib.request.Request(base+path,headers=headers)
+                      with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
                   except Exception as e:
-                      last = e
-                      time.sleep(2 * (attempt + 1))
+                      last=e;time.sleep(2*(attempt+1))
               raise last
-
-          out = {"generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-
-          for key, path in endpoints.items():
-              out[key] = get(path)
-
-          gw = (
-              out["team"].get("current_event")
-              or (out["history"].get("current") or [{}])[-1].get("event")
-              or 1
-          )
-
-          out["picks"] = get(f"/entry/{team_id}/event/{gw}/picks/")
-
-          path = pathlib.Path("data/fpl-cache.json")
-          old_gw = None
-          if path.exists():
-              try:
-                  old = json.loads(path.read_text())
-                  old_gw = old.get("team", {}).get("current_event") or (old.get("history", {}).get("current") or [{}])[-1].get("event")
-              except Exception:
-                  pass
-
-          path.parent.mkdir(exist_ok=True)
-          path.write_text(json.dumps(out, separators=(",", ":")))
-          print(f"Refreshed live cache for GW {gw}; previous cache GW was {old_gw}.")
+          out={"generatedAt":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())}
+          for key,path in endpoints.items():out[key]=get(path)
+          gw=out["team"].get("current_event") or (out["history"].get("current") or [{}])[-1].get("event") or 1
+          out["picks"]=get(f"/entry/{team_id}/event/{gw}/picks/")
+          path=pathlib.Path("data/fpl-cache.json");path.parent.mkdir(exist_ok=True);path.write_text(json.dumps(out,separators=(",",":")))
+          print(f"Refreshed live cache for GW {gw}.")
           PY
 
       - name: Incrementally learn completed current-season gameweeks
@@ -92,7 +59,6 @@ jobs:
             echo "No cache, model or decision-plan change."
             exit 0
           fi
-
           git config user.name "fpl-optimiser-bot"
           git config user.email "fpl-optimiser-bot@users.noreply.github.com"
           git add data/fpl-cache.json data/current-season-live.json lib/current-season-model.ts scripts/current-season-training.mjs data/decision-plan.json scripts/decision-worker.ts
