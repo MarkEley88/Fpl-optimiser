@@ -53,25 +53,35 @@ jobs:
       - name: Incrementally learn completed current-season gameweeks
         run: node scripts/current-season-training.mjs
 
-      - name: Broaden exact-search frontier for worker
+      - name: Remove worker beam caps and use dominance-pruned frontier
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path("lib/engine.ts")
           s=p.read_text()
           replacements={
-            "const BEAM=20;":"const BEAM=300;",
-            "slice(0,12);":"slice(0,50);",
-            "slice(0,8);":"slice(0,30);",
-            "slice(0,6);":"slice(0,20);",
-            ".slice(0,32);":".slice(0,200);"
+            "const BEAM=20;":"const BEAM=Number.MAX_SAFE_INTEGER;",
+            "const BEAM=100;":"const BEAM=Number.MAX_SAFE_INTEGER;",
+            "const BEAM=300;":"const BEAM=Number.MAX_SAFE_INTEGER;",
+            "slice(0,12);":"slice(0,Number.MAX_SAFE_INTEGER);",
+            "slice(0,8);":"slice(0,Number.MAX_SAFE_INTEGER);",
+            "slice(0,6);":"slice(0,Number.MAX_SAFE_INTEGER);",
+            ".slice(0,32);":".slice(0,Number.MAX_SAFE_INTEGER);",
+            "slice(0,50);":"slice(0,Number.MAX_SAFE_INTEGER);",
+            "slice(0,30);":"slice(0,Number.MAX_SAFE_INTEGER);",
+            "slice(0,20);":"slice(0,Number.MAX_SAFE_INTEGER);",
+            ".slice(0,100);":".slice(0,Number.MAX_SAFE_INTEGER);",
+            ".slice(0,200);":".slice(0,Number.MAX_SAFE_INTEGER);"
           }
+          changed=0
           for old,new in replacements.items():
-              if old not in s:
-                  raise SystemExit(f"Expected search control not found: {old}")
-              s=s.replace(old,new)
+              if old in s:
+                  s=s.replace(old,new)
+                  changed+=1
+          if changed==0:
+              raise SystemExit("No known worker search caps found; refusing to run an unverified search.")
           p.write_text(s)
-          print("Worker search frontier broadened: global beam=300, same-GW path beam=200, exact paths=30.")
+          print(f"Removed {changed} worker frontier caps. Search now relies on legal-state generation plus safe dominance pruning rather than a fixed beam.")
           PY
 
       - name: Run multi-gameweek decision worker
