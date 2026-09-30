@@ -186,7 +186,7 @@ export function projectPlayer(p:Player,fixtures:any[],horizon=7,currentGw=0){
   const fixtureAvg=games.length?games.reduce((s,f)=>s+fixtureScore(f,p.team),0)/games.length:1;
   const next=games.length?games[0]:null;
   // Upcoming fixtures are explicitly part of the transfer decision: every
-  // fixture from the current GW through the 5-GW horizon is projected.
+  // fixture from the current GW through the 7-GW horizon is projected.
   const nextPts=next?Math.max(0,expectedFixturePoints(p,next,mins)):0;
   const expected=games.reduce((s,f)=>{
     const fs=eventFixtures(p.team,fixtures,Number(f.event));
@@ -373,7 +373,7 @@ function strategicCandidates(squad:any[],pool:any[],bank:number,fixtures:any[],g
   // Generate every legal candidate first. The cheap player-level horizon delta
   // is used only to make a deliberately broad evaluation set; it is NEVER the
   // final ranking metric. The exact squad/XI/captain score decides the result.
-  const horizon=Math.min(5,39-gw);
+  const horizon=Math.min(7,39-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw,horizon);
   const byOutgoing=new Map<number,any[]>();
   for(const x of all){
@@ -469,7 +469,7 @@ function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:numb
   const baseValue=scoreState(squad,fixtures,gw,null,false).points;
   const rows=all.map(x=>{
     const result=applyTransfer(squad,x);
-    const horizonDelta=squadHorizonDelta(squad,result,fixtures,gw,Math.min(5,39-gw));
+    const horizonDelta=squadHorizonDelta(squad,result,fixtures,gw,Math.min(7,39-gw));
     const nextGwGain=scoreState(result,fixtures,gw,null,false).points-baseValue;
     return {
       in:x.in.name,inId:x.in.id,out:x.out.player.name,outId:x.out.player.id,
@@ -482,7 +482,7 @@ function transferIdeas(squad:any[],pool:any[],bank:number,fixtures:any[],gw:numb
 }
 function decisionPlanDiagnostics(squad:any[],pool:any[],fixtures:any[],gw:number,bank:number,ft:number){
   const baseline=scoreState(squad,fixtures,gw,null,false).points;
-  const horizon=Math.min(5,39-gw);
+  const horizon=Math.min(7,39-gw);
   const all=makeCandidates(squad,pool,bank,fixtures,gw,horizon);
   const hit=ft>0?0:4;
   // Exact squad-level checks across a broad set: top candidates for every
@@ -697,8 +697,8 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   // - A transfer is a state change; price is only a feasibility constraint.
   // - Bank therefore has no standalone value.
   // - Captaincy is excluded from all transfer-path scoring.
-  const endGw=Math.min(38,startGw+4);
-  const BEAM=20;
+  const endGw=Math.min(38,startGw+6);
+  const BEAM=300;
 
   type State={
     squad:any[],bank:number,ft:number,total:number,steps:any[],usedChips:string[],
@@ -775,7 +775,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
           const hit=Math.max(0,ftUsed-st.ft)*4;
           const legal=makeCandidates(
             path.squad,pool,path.bank,fixtures,gw,
-            Math.min(5,endGw-gw+1)
+            Math.min(7,endGw-gw+1)
           );
 
           for(const x of legal){
@@ -819,7 +819,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
 
       const scoredPaths=paths.filter(p=>p.transfers.length).map(path=>{
         const exact=squadHorizonDelta(
-          st.squad,path.squad,fixtures,gw,Math.min(5,endGw-gw+1)
+          st.squad,path.squad,fixtures,gw,Math.min(7,endGw-gw+1)
         );
         return{...path,exactDelta:Number((exact-path.hit).toFixed(2))};
       }).filter(p=>p.exactDelta>-20)
@@ -943,7 +943,7 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
   for(let g=startGw;g<=endGw;g++)holdBaseline+=scoreState(initial,fixtures,g,null,false).points;
 
   // Strategy-level threshold: only recommend a transfer/chip strategy when
-  // the complete five-GW plan is projected to add at least 5 points versus
+  // the complete seven-GW plan is projected to add at least 5 points versus
   // simply holding the starting squad. Smaller gains are treated as noise and
   // are not worth spending transfers or reshaping the squad.
   const minimumStrategyGain=5;
@@ -962,14 +962,14 @@ function buildDecisionPlan(initial:any[],pool:any[],fixtures:any[],startGw:numbe
     }
     return holdSteps;
   }
-  return best.steps.map((step:any)=>({...step,strategyGain5GW:strategyGain,minimumStrategyGain:minimumStrategyGain,haalandLocked:true}));
+  return best.steps.map((step:any)=>({...step,strategyGain7GW:strategyGain,minimumStrategyGain:minimumStrategyGain,haalandLocked:true}));
 }
 
 export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[],gw:number,bank=0,history:any=null,entryHistory:any=null,includeDecisionPlan=true,fastMode=false,planOnly=false){
   WEEK_SCORE_CACHE.clear();
   SCORE_STATE_CACHE.clear();
   SUBSTITUTION_CACHE.clear();
-  const horizon=Math.min(38,gw+4);
+  const horizon=Math.min(38,gw+6);
   let pool=elements.map(p=>projectPlayer(p,fixtures,horizon,gw));
   // Recent element-summary calls are intentionally not made at request time. The
   // optimiser runs from the GitHub-refreshed live FPL cache so the Vercel
@@ -1009,7 +1009,7 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
     transferIdeas:transferIdeas(current,pool,Number(bank||0),fixtures,gw),substitutionPlan:substitutionPlan(current,fixtures,gw),currentStartingXI:currentXI.sort((a:any,b:any)=>Number(a.position)-Number(b.position)).map((x:any)=>x.player.name),currentBench:currentBench.sort((a:any,b:any)=>Number(a.position)-Number(b.position)).map((x:any)=>x.player.name),
     bank:Number(bank||0),freeTransfers:getFT(history,gw,entryHistory),currentGameweek:gw,
     rules:{squadSize:15,maxPlayersPerClub:3,formation:"1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD",transferPositionLock:false,budgetConstraint:true,transferHit:4,maxFreeTransfers:5,sellingValueUsed:true,freeHitCannotBeConsecutive:true,twoChipSets:true,oneChipPerGameweek:true,chipResetGameweek:20},
-    model:{name:"FPL Decision Engine v1.0",method:"broader FPL statistical model + live per-fixture projections + 5-GW transfer timing search + chip opportunity-cost layer",horizon:5,transferHitPoints:4,principles:["Optimise cumulative future gameweek points, not just the next GW","Evaluate every candidate and multi-transfer sequence across the five-GW horizon","Use player price only as a hard affordability/legal constraint; never as a quality or ranking factor","Avoid hits unless the projected future gain exceeds the 4-point cost","Do not chase price changes; footballing projection determines player quality","Captain the starting-XI player with the highest predicted points for that Gameweek","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
+    model:{name:"FPL Decision Engine v1.0",method:"broader FPL statistical model + live per-fixture projections + 5-GW transfer timing search + chip opportunity-cost layer",horizon:7,transferHitPoints:4,principles:["Optimise cumulative future gameweek points, not just the next GW","Evaluate every candidate and multi-transfer sequence across the seven-GW horizon","Use player price only as a hard affordability/legal constraint; never as a quality or ranking factor","Avoid hits unless the projected future gain exceeds the 4-point cost","Do not chase price changes; footballing projection determines player quality","Captain the starting-XI player with the highest predicted points for that Gameweek","Wildcard for structural repair and future fixture runs, not one-week problems","Use Free Hit for genuine blank-gameweek damage","Benchmark chips by incremental points versus saving them"]},
     chips:{remaining,suggestions:chips,used:usedChips},
     projectedGameweek:{points:Number(scoreState(current,fixtures,gw,null).points.toFixed(2)),captain:captainPlan(xi,fixtures,gw).captain,vice:captainPlan(xi,fixtures,gw).vice,formation:built.formation},
     decisionPlan:includeDecisionPlan?buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,entryHistory):[],
