@@ -53,35 +53,14 @@ jobs:
       - name: Incrementally learn completed current-season gameweeks
         run: node scripts/current-season-training.mjs
 
-      - name: Remove worker beam caps and use dominance-pruned frontier
+      - name: Validate production search controls
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path("lib/engine.ts")
-          s=p.read_text()
-          replacements={
-            "const BEAM=20;":"const BEAM=Number.MAX_SAFE_INTEGER;",
-            "const BEAM=100;":"const BEAM=Number.MAX_SAFE_INTEGER;",
-            "const BEAM=300;":"const BEAM=Number.MAX_SAFE_INTEGER;",
-            "slice(0,12);":"slice(0,Number.MAX_SAFE_INTEGER);",
-            "slice(0,8);":"slice(0,Number.MAX_SAFE_INTEGER);",
-            "slice(0,6);":"slice(0,Number.MAX_SAFE_INTEGER);",
-            ".slice(0,32);":".slice(0,Number.MAX_SAFE_INTEGER);",
-            "slice(0,50);":"slice(0,Number.MAX_SAFE_INTEGER);",
-            "slice(0,30);":"slice(0,Number.MAX_SAFE_INTEGER);",
-            "slice(0,20);":"slice(0,Number.MAX_SAFE_INTEGER);",
-            ".slice(0,100);":".slice(0,Number.MAX_SAFE_INTEGER);",
-            ".slice(0,200);":".slice(0,Number.MAX_SAFE_INTEGER);"
-          }
-          changed=0
-          for old,new in replacements.items():
-              if old in s:
-                  s=s.replace(old,new)
-                  changed+=1
-          if changed==0:
-              raise SystemExit("No known worker search caps found; refusing to run an unverified search.")
-          p.write_text(s)
-          print(f"Removed {changed} worker frontier caps. Search now relies on legal-state generation plus safe dominance pruning rather than a fixed beam.")
+          s=Path("lib/engine.ts").read_text()
+          if "const BEAM=300;" not in s:
+              raise SystemExit("Expected production BEAM=300 control not found.")
+          print("Using bounded production frontier with admissible-bound pruning.")
           PY
 
       - name: Run multi-gameweek decision worker
