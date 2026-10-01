@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-01T06:34:37.842Z",
+  "generatedAt": "2026-10-01T07:57:41.871Z",
   "gameweek": 5,
   "decisionPlan": [
     {
@@ -110,10 +110,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 922876,
-            "transfers_in_event": 77599,
-            "transfers_out": 321501,
-            "transfers_out_event": 19843,
+            "transfers_in": 922952,
+            "transfers_in_event": 77675,
+            "transfers_out": 321537,
+            "transfers_out_event": 19879,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -280,8 +280,8 @@
             "cost_change_event_fall": 0,
             "cost_change_start": -1,
             "cost_change_start_fall": 1,
-            "price_change_percent": "-74.7",
-            "price_change_hourly_rate": 0,
+            "price_change_percent": "-74.8",
+            "price_change_hourly_rate": 9,
             "price_change_projections": [
               {
                 "offset": 0,
@@ -290,12 +290,12 @@
               },
               {
                 "offset": 1,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               },
               {
                 "offset": 2,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               }
             ],
@@ -324,10 +324,10 @@
             "team": 16,
             "team_code": 1,
             "total_points": 25,
-            "transfers_in": 463163,
-            "transfers_in_event": 36184,
-            "transfers_out": 2014976,
-            "transfers_out_event": 128477,
+            "transfers_in": 463214,
+            "transfers_in_event": 36235,
+            "transfers_out": 2015054,
+            "transfers_out_event": 128555,
             "value_form": "0.5",
             "value_season": "3.2",
             "web_name": "Mbeumo",
@@ -576,10 +576,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 922876,
-            "transfers_in_event": 77599,
-            "transfers_out": 321501,
-            "transfers_out_event": 19843,
+            "transfers_in": 922952,
+            "transfers_in_event": 77675,
+            "transfers_out": 321537,
+            "transfers_out_event": 19879,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -746,8 +746,8 @@
             "cost_change_event_fall": 0,
             "cost_change_start": -1,
             "cost_change_start_fall": 1,
-            "price_change_percent": "-74.7",
-            "price_change_hourly_rate": 0,
+            "price_change_percent": "-74.8",
+            "price_change_hourly_rate": 9,
             "price_change_projections": [
               {
                 "offset": 0,
@@ -756,12 +756,12 @@
               },
               {
                 "offset": 1,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               },
               {
                 "offset": 2,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               }
             ],
@@ -790,10 +790,10 @@
             "team": 16,
             "team_code": 1,
             "total_points": 25,
-            "transfers_in": 463163,
-            "transfers_in_event": 36184,
-            "transfers_out": 2014976,
-            "transfers_out_event": 128477,
+            "transfers_in": 463214,
+            "transfers_in_event": 36235,
+            "transfers_out": 2015054,
+            "transfers_out_event": 128555,
             "value_form": "0.5",
             "value_season": "3.2",
             "web_name": "Mbeumo",
@@ -1042,10 +1042,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 922876,
-            "transfers_in_event": 77599,
-            "transfers_out": 321501,
-            "transfers_out_event": 19843,
+            "transfers_in": 922952,
+            "transfers_in_event": 77675,
+            "transfers_out": 321537,
+            "transfers_out_event": 19879,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -1213,7 +1213,7 @@
             "cost_change_start": 0,
             "cost_change_start_fall": 0,
             "price_change_percent": "53.9",
-            "price_change_hourly_rate": 5,
+            "price_change_hourly_rate": -2,
             "price_change_projections": [
               {
                 "offset": 0,
@@ -1222,12 +1222,12 @@
               },
               {
                 "offset": 1,
-                "projected_percent": "54.0",
+                "projected_percent": "53.8",
                 "likelihood": 3
               },
               {
                 "offset": 2,
-                "projected_percent": "54.0",
+                "projected_percent": "53.8",
                 "likelihood": 3
               }
             ],
@@ -1256,10 +1256,10 @@
             "team": 5,
             "team_code": 36,
             "total_points": 20,
-            "transfers_in": 554820,
-            "transfers_in_event": 25931,
-            "transfers_out": 170670,
-            "transfers_out_event": 32716,
+            "transfers_in": 554835,
+            "transfers_in_event": 25946,
+            "transfers_out": 170688,
+            "transfers_out_event": 32734,
             "value_form": "0.8",
             "value_season": "4.4",
             "web_name": "Yalcouyé",
@@ -1508,10 +1508,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 922876,
-            "transfers_in_event": 77599,
-            "transfers_out": 321501,
-            "transfers_out_event": 19843,
+            "transfers_in": 922952,
+            "transfers_in_event": 77675,
+            "transfers_out": 321537,
+            "transfers_out_event": 19879,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -1678,8 +1678,8 @@
             "cost_change_event_fall": 0,
             "cost_change_start": -1,
             "cost_change_start_fall": 1,
-            "price_change_percent": "-74.7",
-            "price_change_hourly_rate": 0,
+            "price_change_percent": "-74.8",
+            "price_change_hourly_rate": 9,
             "price_change_projections": [
               {
                 "offset": 0,
@@ -1688,12 +1688,12 @@
               },
               {
                 "offset": 1,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               },
               {
                 "offset": 2,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               }
             ],
@@ -1722,10 +1722,10 @@
             "team": 16,
             "team_code": 1,
             "total_points": 25,
-            "transfers_in": 463163,
-            "transfers_in_event": 36184,
-            "transfers_out": 2014976,
-            "transfers_out_event": 128477,
+            "transfers_in": 463214,
+            "transfers_in_event": 36235,
+            "transfers_out": 2015054,
+            "transfers_out_event": 128555,
             "value_form": "0.5",
             "value_season": "3.2",
             "web_name": "Mbeumo",
@@ -1974,10 +1974,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 922876,
-            "transfers_in_event": 77599,
-            "transfers_out": 321501,
-            "transfers_out_event": 19843,
+            "transfers_in": 922952,
+            "transfers_in_event": 77675,
+            "transfers_out": 321537,
+            "transfers_out_event": 19879,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -2144,8 +2144,8 @@
             "cost_change_event_fall": 0,
             "cost_change_start": -1,
             "cost_change_start_fall": 1,
-            "price_change_percent": "-74.7",
-            "price_change_hourly_rate": 0,
+            "price_change_percent": "-74.8",
+            "price_change_hourly_rate": 9,
             "price_change_projections": [
               {
                 "offset": 0,
@@ -2154,12 +2154,12 @@
               },
               {
                 "offset": 1,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               },
               {
                 "offset": 2,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               }
             ],
@@ -2188,10 +2188,10 @@
             "team": 16,
             "team_code": 1,
             "total_points": 25,
-            "transfers_in": 463163,
-            "transfers_in_event": 36184,
-            "transfers_out": 2014976,
-            "transfers_out_event": 128477,
+            "transfers_in": 463214,
+            "transfers_in_event": 36235,
+            "transfers_out": 2015054,
+            "transfers_out_event": 128555,
             "value_form": "0.5",
             "value_season": "3.2",
             "web_name": "Mbeumo",
@@ -2440,10 +2440,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 922876,
-            "transfers_in_event": 77599,
-            "transfers_out": 321501,
-            "transfers_out_event": 19843,
+            "transfers_in": 922952,
+            "transfers_in_event": 77675,
+            "transfers_out": 321537,
+            "transfers_out_event": 19879,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -2610,8 +2610,8 @@
             "cost_change_event_fall": 0,
             "cost_change_start": -1,
             "cost_change_start_fall": 1,
-            "price_change_percent": "-74.7",
-            "price_change_hourly_rate": 0,
+            "price_change_percent": "-74.8",
+            "price_change_hourly_rate": 9,
             "price_change_projections": [
               {
                 "offset": 0,
@@ -2620,12 +2620,12 @@
               },
               {
                 "offset": 1,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               },
               {
                 "offset": 2,
-                "projected_percent": "-74.7",
+                "projected_percent": "-74.6",
                 "likelihood": -3
               }
             ],
@@ -2654,10 +2654,10 @@
             "team": 16,
             "team_code": 1,
             "total_points": 25,
-            "transfers_in": 463163,
-            "transfers_in_event": 36184,
-            "transfers_out": 2014976,
-            "transfers_out_event": 128477,
+            "transfers_in": 463214,
+            "transfers_in_event": 36235,
+            "transfers_out": 2015054,
+            "transfers_out_event": 128555,
             "value_form": "0.5",
             "value_season": "3.2",
             "web_name": "Mbeumo",
@@ -2906,10 +2906,10 @@
             "team": 15,
             "team_code": 43,
             "total_points": 39,
-            "transfers_in": 922876,
-            "transfers_in_event": 77599,
-            "transfers_out": 321501,
-            "transfers_out_event": 19843,
+            "transfers_in": 922952,
+            "transfers_in_event": 77675,
+            "transfers_out": 321537,
+            "transfers_out_event": 19879,
             "value_form": "0.5",
             "value_season": "2.5",
             "web_name": "Haaland",
@@ -3077,7 +3077,7 @@
             "cost_change_start": 0,
             "cost_change_start_fall": 0,
             "price_change_percent": "53.9",
-            "price_change_hourly_rate": 5,
+            "price_change_hourly_rate": -2,
             "price_change_projections": [
               {
                 "offset": 0,
@@ -3086,12 +3086,12 @@
               },
               {
                 "offset": 1,
-                "projected_percent": "54.0",
+                "projected_percent": "53.8",
                 "likelihood": 3
               },
               {
                 "offset": 2,
-                "projected_percent": "54.0",
+                "projected_percent": "53.8",
                 "likelihood": 3
               }
             ],
@@ -3120,10 +3120,10 @@
             "team": 5,
             "team_code": 36,
             "total_points": 20,
-            "transfers_in": 554820,
-            "transfers_in_event": 25931,
-            "transfers_out": 170670,
-            "transfers_out_event": 32716,
+            "transfers_in": 554835,
+            "transfers_in_event": 25946,
+            "transfers_out": 170688,
+            "transfers_out_event": 32734,
             "value_form": "0.8",
             "value_season": "4.4",
             "web_name": "Yalcouyé",
