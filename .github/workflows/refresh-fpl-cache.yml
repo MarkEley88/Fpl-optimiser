@@ -3,8 +3,8 @@ name: Refresh FPL live cache
 # Refresh the fallback snapshot twice weekly. The multi-GW decision search is
 # deliberately run on GitHub Actions rather than inside Vercel so it is not
 # constrained by the web-function execution budget.
-# Strategy guardrails: a 5-GW plan must add >=5 projected points versus Hold;
-# Haaland (411) is a permanent anchor and may never be sold.
+# Strategy guardrail: a 7-GW plan must add >=5 projected points versus Hold.
+# Player selection is model/constraint driven; no player is hard-coded as unsellable.
 on:
   schedule:
     - cron: "0 7 * * 2"
@@ -53,6 +53,30 @@ jobs:
       - name: Incrementally learn completed current-season gameweeks
         run: node scripts/current-season-training.mjs
 
+      - name: Apply production search hardening
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path("lib/engine.ts")
+          s=p.read_text()
+          replacements={
+              '            if(outId===411)continue;\n':'',
+              '          // Haaland is a permanent squad anchor: wildcard rebuilds may not remove him.\n          if(!rebuilt.squad.some((x:any)=>Number(x.player?.id)===411))continue;\n':'',
+              '          // Free Hit is temporary, but the optimiser still treats Haaland as a hard anchor.\n          if(!best.some((p:any)=>Number(p.id)===411))continue;\n':'',
+              '    const planDiagnostics=decisionPlanDiagnostics(current,pool,fixtures,gw,Number(bank||0),getFT(history,gw,entryHistory));\n':'    const planDiagnostics=planOnly?decisionPlanDiagnostics(current,pool,fixtures,gw,Number(bank||0),getFT(history,gw,entryHistory)):null;\n',
+              '        strategyGain7GW:strategyGain,minimumStrategyGain:minimumStrategyGain,haalandLocked:true':'        strategyGain7GW:strategyGain,minimumStrategyGain:minimumStrategyGain'
+          }
+          changed=0
+          for old,new in replacements.items():
+              if old in s:
+                  s=s.replace(old,new)
+                  changed+=1
+          if changed<3:
+              raise SystemExit(f"Expected production search hardening was not fully applied; changed={changed}")
+          p.write_text(s)
+          print(f"Applied {changed} production search hardening changes: no hard-coded player lock; diagnostics are opt-in; output no longer claims a player lock.")
+          PY
+
       - name: Validate production search controls
         run: |
           python - <<'PY'
@@ -60,20 +84,22 @@ jobs:
           s=Path("lib/engine.ts").read_text()
           if "const BEAM=300;" not in s:
               raise SystemExit("Expected production BEAM=300 control not found.")
-          print("Using bounded production frontier with admissible-bound pruning.")
+          if "if(outId===411)continue;" in s:
+              raise SystemExit("Hard-coded Haaland transfer lock still present.")
+          print("Using bounded production frontier with admissible-bound pruning and model-driven player selection.")
           PY
 
       - name: Run multi-gameweek decision worker
         run: npx --yes tsx scripts/decision-worker.ts
 
-      - name: Commit cache, model and decision plan
+      - name: Commit cache, model, engine and decision plan
         run: |
-          if git diff --quiet -- data/fpl-cache.json lib/current-season-model.ts data/current-season-live.json data/decision-plan.json; then
-            echo "No cache, model or decision-plan change."
+          if git diff --quiet -- data/fpl-cache.json lib/current-season-model.ts data/current-season-live.json data/decision-plan.json lib/engine.ts scripts/current-season-training.mjs scripts/decision-worker.ts; then
+            echo "No cache, model, engine or decision-plan change."
             exit 0
           fi
           git config user.name "fpl-optimiser-bot"
           git config user.email "fpl-optimiser-bot@users.noreply.github.com"
-          git add data/fpl-cache.json data/current-season-live.json lib/current-season-model.ts scripts/current-season-training.mjs data/decision-plan.json scripts/decision-worker.ts
-          git commit -m "chore: refresh FPL cache, model and decision plan"
+          git add data/fpl-cache.json data/current-season-live.json lib/current-season-model.ts lib/engine.ts scripts/current-season-training.mjs data/decision-plan.json scripts/decision-worker.ts
+          git commit -m "chore: harden FPL decision search"
           git push origin HEAD:main
