@@ -992,7 +992,7 @@ export async function optimiseSquad(picks:any[],elements:Player[],fixtures:any[]
   const currentBench=current.filter((x:any)=>Number((x as any).position||0)>=12&&Number((x as any).position||0)<=15);
 
   const bench=current.filter(x=>!xiIds.has(x.player.id)).sort((a,b)=>selectionScore(b.player,fixtures,gw)-selectionScore(a.player,fixtures,gw));
-  const planDiagnostics=decisionPlanDiagnostics(current,pool,fixtures,gw,Number(bank||0),getFT(history,gw,entryHistory));
+  const planDiagnostics=planOnly?decisionPlanDiagnostics(current,pool,fixtures,gw,Number(bank||0),getFT(history,gw,entryHistory)):null;
   if(planOnly){
     return {pool,current,decisionPlan:buildDecisionPlan(current,pool,fixtures,gw,Number(bank||0),history,entryHistory),decisionPlanDiagnostics:planDiagnostics};
   }
