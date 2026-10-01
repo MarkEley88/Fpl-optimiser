@@ -53,30 +53,6 @@ jobs:
       - name: Incrementally learn completed current-season gameweeks
         run: node scripts/current-season-training.mjs
 
-      - name: Apply production search hardening
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path("lib/engine.ts")
-          s=p.read_text()
-          replacements={
-              '            if(outId===411)continue;\n':'',
-              '          // Haaland is a permanent squad anchor: wildcard rebuilds may not remove him.\n          if(!rebuilt.squad.some((x:any)=>Number(x.player?.id)===411))continue;\n':'',
-              '          // Free Hit is temporary, but the optimiser still treats Haaland as a hard anchor.\n          if(!best.some((p:any)=>Number(p.id)===411))continue;\n':'',
-              '    const planDiagnostics=decisionPlanDiagnostics(current,pool,fixtures,gw,Number(bank||0),getFT(history,gw,entryHistory));\n':'    const planDiagnostics=planOnly?decisionPlanDiagnostics(current,pool,fixtures,gw,Number(bank||0),getFT(history,gw,entryHistory)):null;\n',
-              '        strategyGain7GW:strategyGain,minimumStrategyGain:minimumStrategyGain,haalandLocked:true':'        strategyGain7GW:strategyGain,minimumStrategyGain:minimumStrategyGain'
-          }
-          changed=0
-          for old,new in replacements.items():
-              if old in s:
-                  s=s.replace(old,new)
-                  changed+=1
-          if changed<3:
-              raise SystemExit(f"Expected production search hardening was not fully applied; changed={changed}")
-          p.write_text(s)
-          print(f"Applied {changed} production search hardening changes: no hard-coded player lock; diagnostics are opt-in; output no longer claims a player lock.")
-          PY
-
       - name: Validate production search controls
         run: |
           python - <<'PY'
@@ -86,6 +62,8 @@ jobs:
               raise SystemExit("Expected production BEAM=300 control not found.")
           if "if(outId===411)continue;" in s:
               raise SystemExit("Hard-coded Haaland transfer lock still present.")
+          if "planOnly?decisionPlanDiagnostics" not in s:
+              raise SystemExit("Expected production diagnostics to be opt-in.")
           print("Using bounded production frontier with admissible-bound pruning and model-driven player selection.")
           PY
 
@@ -100,6 +78,6 @@ jobs:
           fi
           git config user.name "fpl-optimiser-bot"
           git config user.email "fpl-optimiser-bot@users.noreply.github.com"
-          git add data/fpl-cache.json data/current-season-live.json lib/current-season-model.ts lib/engine.ts scripts/current-season-training.mjs data/decision-plan.json scripts/decision-worker.ts
-          git commit -m "chore: harden FPL decision search"
+          git add data/fpl-cache.json data/current-season-live.json lib/current-season-model.ts data/decision-plan.json lib/engine.ts scripts/current-season-training.mjs scripts/decision-worker.ts
+          git commit -m "chore: refresh FPL decision cache"
           git push origin HEAD:main
