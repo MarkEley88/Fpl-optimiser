@@ -31,7 +31,7 @@ jobs:
           import json, urllib.request, pathlib, time
           base = "https://fantasy.premierleague.com/api"
           team_id = "1187241"
-          endpoints = {"bootstrap":"/bootstrap-static/","fixtures":"/fixtures/","team":f"/entry/{team_id}/","history":f"/entry/{team_id}/history/"}
+          endpoints = {"bootstrap":"/bootstrap-static/","fixtures":"/fixtures/","team":f"/entry/{team_id}/","history":f"/entry/{team_id}/history/","transfers":f"/entry/{team_id}/transfers/"}
           headers = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36","Accept":"application/json, text/plain, */*","Accept-Language":"en-GB,en;q=0.9","Referer":"https://fantasy.premierleague.com/","Origin":"https://fantasy.premierleague.com"}
           def get(path):
               last=None
@@ -44,10 +44,32 @@ jobs:
               raise last
           out={"generatedAt":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())}
           for key,path in endpoints.items():out[key]=get(path)
-          gw=out["team"].get("current_event") or (out["history"].get("current") or [{}])[-1].get("event") or 1
+          gw=int(out["team"].get("current_event") or (out["history"].get("current") or [{}])[-1].get("event") or 1)
           out["picks"]=get(f"/entry/{team_id}/event/{gw}/picks/")
+
+          # FPL can continue reporting the last completed/current event for a
+          # period after its matches finish. Reconstruct the manager's actual
+          # current squad by applying any transfers made after that locked GW.
+          post=[t for t in (out.get("transfers") or []) if int(t.get("event") or 0)>gw]
+          current_picks=list(out["picks"].get("picks") or [])
+          by_out={int(t.get("element_out")):t for t in post}
+          for pick in current_picks:
+              eid=int(pick.get("element") or 0)
+              if eid in by_out:
+                  pick["element"]=int(by_out[eid].get("element_in"))
+          entry_history=dict(out["picks"].get("entry_history") or {})
+          bank=int(entry_history.get("bank") or 0)
+          for t in post:
+              bank += int(t.get("element_out_cost") or 0)-int(t.get("element_in_cost") or 0)
+          decision_gw=gw+1
+          ft=max(0,min(2,1-len(post)))
+          out["current_squad"]={"event":decision_gw,"picks":current_picks,"entry_history":{**entry_history,"event":decision_gw,"bank":bank,"event_transfers":len(post),"event_transfers_available":ft}}
+          out["decision_event"]=decision_gw
+          out["current_bank"]=bank
+          out["current_free_transfers"]=ft
+          out["post_completed_gw_transfers"]=post
           path=pathlib.Path("data/fpl-cache.json");path.parent.mkdir(exist_ok=True);path.write_text(json.dumps(out,separators=(",",":")))
-          print(f"Refreshed live cache for GW {gw}.")
+          print(f"Refreshed live cache for completed/current GW {gw}; decision GW {decision_gw}; applied {len(post)} post-GW transfer(s); FT={ft}; bank={bank/10:.1f}m.")
           PY
 
       - name: Incrementally learn completed current-season gameweeks
@@ -72,7 +94,7 @@ jobs:
 
       - name: Commit cache, model, engine and decision plan
         run: |
-          if git diff --quiet -- data/fpl-cache.json lib/current-season-model.ts data/current-season-live.json data/decision-plan.json lib/engine.ts scripts/current-season-training.mjs scripts/decision-worker.ts; then
+          if git diff --quiet -- data/fpl-cache.json lib/current-season-live.json lib/current-season-model.ts data/decision-plan.json lib/engine.ts scripts/current-season-training.mjs scripts/decision-worker.ts; then
             echo "No cache, model, engine or decision-plan change."
             exit 0
           fi
