@@ -2,7 +2,7 @@
 // Incremental 2026/27 learning state; completed Gameweeks are learned once.
 export const CURRENT_SEASON_MODEL={
   "season": "2026-27",
-  "lastLearnedGW": 6,
+  "lastLearnedGW": 7,
   "weights": {
     "form3": 0.2434402409061094,
     "form5": 0.18565428238536727,
